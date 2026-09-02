@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="Dashboard de Reportes 2026", page_icon="📊", layout="wide"
 )
 
-st.title("📊 Control y Evolución de Reportes de Incidencias 2026")
+st.title("📊 Control y Seguimiento de Incidencias")
 
 
 # Función para cargar y procesar los datos
@@ -95,7 +95,7 @@ else:
             x=df_dia["FECHA"],
             y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             name="Acumulados al Iniciar",
-            marker_color="#5DADE2",
+            marker_color="#85c1e9",
             text=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             textposition="inside",
             insidetextanchor="middle",
@@ -111,7 +111,7 @@ else:
             x=df_dia["FECHA"],
             y=df_dia["REPORTES RECIBIDOS"],
             name="Reportes Recibidos",
-            marker_color="#1F4E78",
+            marker_color="#266196",
             text=df_dia["REPORTES RECIBIDOS"],
             textposition="inside",
             insidetextanchor="middle",
@@ -148,10 +148,10 @@ else:
             text=df_dia["REPORTES FINALIZADOS"],
             textposition="top center",
             textfont=dict(
-                color="#27AE60", size=11, family="Arial", weight="bold"
+                color="#219351", size=11, family="Arial", weight="bold"
             ),
             marker=dict(size=6, color="#27AE60"),
-            line=dict(color="#27AE60", width=2),
+            line=dict(color="#219351", width=2),
         )
     )
 
