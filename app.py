@@ -149,7 +149,7 @@ else:
         title=dict(
             text="<b>Flujo Diario de Reportes - Agosto 2026</b>",
             font=dict(
-                size=18, color="#191919"),
+                size=18, color="#1f4e78"),
         ),barmode="stack",
         xaxis_title="<b>Día del Mes</b>",
         yaxis_title="<b>Cantidad de Reportes</b>",
