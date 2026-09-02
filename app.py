@@ -136,11 +136,11 @@ else:
             f"##### 📌 Resumen del Mes de {mes_nombre_seleccionado}"
             f" {anio_seleccionado}"
         )
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
-        c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
-        c3.metric("📊 Total Incidencias", f"{total_mes:,}")
-        c4.metric("✅ Atendidos / Finalizados", f"{finalizados_mes:,}")
+        c1, c2, c3, c4,c5, c6 = st.columns(6)
+        c3.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
+        c4.metric("📥 Recibidos", f"{recibidos_mes:,}")
+        c5.metric("📊 Total Incidencias", f"{total_mes:,}")
+        c6.metric("✅ Atendidos / Finalizados", f"{finalizados_mes:,}")
         st.divider()
 
         dias_mes = pd.date_range(
