@@ -108,7 +108,7 @@ else:
             x=df_dia["FECHA"],
             y=df_dia["REPORTES RECIBIDOS"],
             name="Reportes Recibidos",
-            marker_color="#6391f4",
+            marker_color="#70B665",
             text=df_dia["REPORTES RECIBIDOS"],
             textposition="inside",
             textfont=dict(color="white", size=11),
@@ -139,9 +139,9 @@ else:
             mode="lines+markers+text",
             text=df_dia["REPORTES FINALIZADOS"],
             textposition="top center",
-            textfont=dict(color="#43A047", size=11),
-            marker=dict(size=6, color="#43A047"),
-            line=dict(color="#43A047", width=2),
+            textfont=dict(color="#6391f4", size=11),
+            marker=dict(size=6, color="#6391f4"),
+            line=dict(color="#6391f4", width=2),
         )
     )
 
