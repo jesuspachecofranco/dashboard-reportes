@@ -62,7 +62,7 @@ else:
     with tab1:
         st.subheader("Comportamiento Diario por Mes")
 
-        # Selectores en una sola fila compacta usando las mismas columnas
+        # Selectores en una sola fila estricta
         col_s1, col_s2, col_s3 = st.columns([1, 1, 2])
         with col_s1:
             anio_seleccionado = st.selectbox(
@@ -95,7 +95,9 @@ else:
                 if v == mes_nombre_seleccionado
             ][0]
 
-        st.divider()
+        st.markdown(
+            "---"
+        )  # Línea divisoria clara debajo de los selectores en fila única
 
         inicio_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado, month=mes_seleccionado, day=1
@@ -275,7 +277,7 @@ else:
                 key="anio_t2",
             )
 
-        st.divider()
+        st.markdown("---")
 
         inicio_anio = pd.Timestamp(year=anio_anual, month=1, day=1)
         fin_anio = pd.Timestamp(year=anio_anual + 1, month=1, day=1)
