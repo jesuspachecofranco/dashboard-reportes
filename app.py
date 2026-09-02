@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("📊 Control y Seguimiento de Incidencias")
 
 
-# --- AQUÍ VAS A REEMPLAZAR TU FUNCIÓN CARGAR_DATOS ACTUAL ---
+# Función para cargar y procesar los datos
 @st.cache_data
 def cargar_datos():
   archivo_entrada = "resultado_unificado.xlsx"
@@ -20,22 +20,14 @@ def cargar_datos():
     return None
 
   df = pd.read_excel(archivo_entrada)
-
-  # LIMPIEZA DE FILAS VACÍAS O INCOMPLETAS:
-  # Esto elimina automáticamente las filas que no tienen fecha de recepción (basura, celdas en blanco o solo con zona)
-  df = df.dropna(subset=["RECEPCIÓN"])
-
   df["RECEPCION_DT"] = pd.to_datetime(
       df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
   )
   df["FINALIZACION_DT"] = pd.to_datetime(
       df["FINALIZACIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
   )
-
-  # Elimina filas donde la conversión de fecha haya fallado (NaT)
-  df = df.dropna(subset=["RECEPCION_DT"])
-
   return df
+
 
 df = cargar_datos()
 
@@ -132,7 +124,7 @@ else:
     # Gráfica Plotly Interactiva para Diario
     fig1 = go.Figure()
 
-    # 1. Base de la barra: Acumulados al Iniciar (Texto negro)
+    # 1. Base de la barra: Acumulados al Iniciar
     fig1.add_trace(
         go.Bar(
             x=df_dia["FECHA"],
@@ -145,7 +137,7 @@ else:
         )
     )
 
-    # 2. Cima de la barra: Reportes Recibidos (Texto negro)
+    # 2. Cima de la barra: Reportes Recibidos
     fig1.add_trace(
         go.Bar(
             x=df_dia["FECHA"],
@@ -201,7 +193,109 @@ else:
     )
     st.plotly_chart(fig1, use_container_width=True)
 
-    with st.expander("Ver tabla de datos diarios"):
+    # ==========================================
+    # NUEVA SECCIÓN: CONSULTA DETALLADA POR DÍA
+    # ==========================================
+    st.markdown("---")
+    st.subheader("🔍 Consulta Detallada de Incidencias por Día")
+    st.markdown(
+        "Selecciona un día del mes de Agosto para inspeccionar el detalle"
+        " exacto de los reportes acumulados, recibidos y finalizados."
+    )
+
+    col_sel1, col_sel2 = st.columns([1, 2])
+    with col_sel1:
+      dia_seleccionado = st.date_input(
+          "Seleccione la fecha:",
+          value=datetime(2026, 8, 12),
+          min_value=datetime(2026, 8, 1),
+          max_value=datetime(2026, 8, 31),
+      )
+
+    # Convertir fecha seleccionada a Timestamp para filtrar
+    inicio_sel = pd.Timestamp(dia_seleccionado)
+    fin_sel = inicio_sel + pd.Timedelta(days=1)
+
+    # Columnas que solicitaste mostrar
+    columnas_mostrar = [
+        "INCIDENCIA",
+        "RECEPCIÓN",
+        "FINALIZACIÓN",
+        "DIRECCIÓN",
+        "CLIENTE",
+        "MOTIVO",
+        "ESTADO",
+    ]
+
+    # Filtrar DataFrames específicos
+    # 1. Acumulados al iniciar el día (entraron antes y siguen sin finalizar, o finalizaron ese día o después)
+    df_acumulados_dia = df[
+        (df["RECEPCION_DT"] < inicio_sel)
+        & (
+            df["FINALIZACION_DT"].isna()
+            | (df["FINALIZACION_DT"] >= inicio_sel)
+        )
+    ]
+
+    # 2. Recibidos exactamente ese día
+    df_recibidos_dia = df[
+        (df["RECEPCION_DT"] >= inicio_sel) & (df["RECEPCION_DT"] < fin_sel)
+    ]
+
+    # 3. Finalizados exactamente ese día
+    df_finalizados_dia = df[
+        (df["FINALIZACION_DT"] >= inicio_sel)
+        & (df["FINALIZACION_DT"] < fin_sel)
+    ]
+
+    # Pestañas o sub-secciones con expanders para cada categoría
+    st.markdown(
+        f"### Reporte Detallado para el día:"
+        f" {dia_seleccionado.strftime('%d/%m/%Y')}"
+    )
+
+    with st.expander(
+        f"📦 Incidencias Acumuladas Pendientes ({len(df_acumulados_dia)} registros)",
+        expanded=True,
+    ):
+      st.markdown(
+          "*Casos que venían de días anteriores y seguían activos al iniciar"
+          " este día.*"
+      )
+      if not df_acumulados_dia.empty:
+        st.dataframe(
+            df_acumulados_dia[columnas_mostrar], use_container_width=True
+        )
+      else:
+        st.info("No hay registros acumulados para esta fecha.")
+
+    with st.expander(
+        f"📥 Incidencias Recibidas ({len(df_recibidos_dia)} registros)"
+    ):
+      st.markdown("*Casos que ingresaron exactamente durante este día.*")
+      if not df_recibidos_dia.empty:
+        st.dataframe(
+            df_recibidos_dia[columnas_mostrar], use_container_width=True
+        )
+      else:
+        st.info("No se recibieron incidencias en esta fecha.")
+
+    with st.expander(
+        f"✅ Incidencias Finalizadas / Atendidas ({len(df_finalizados_dia)} registros)"
+    ):
+      st.markdown(
+          "*Casos cuya fecha de finalización se registró durante este día.*"
+      )
+      if not df_finalizados_dia.empty:
+        st.dataframe(
+            df_finalizados_dia[columnas_mostrar], use_container_width=True
+        )
+      else:
+        st.info("No hay incidencias finalizadas en esta fecha.")
+
+    st.divider()
+
+    with st.expander("Ver tabla general de datos diarios (Resumen)"):
       st.dataframe(df_dia, use_container_width=True)
 
   # ==========================================
@@ -300,7 +394,7 @@ else:
     # Gráfica Plotly Interactiva para Anual
     fig2 = go.Figure()
 
-    # 1. Base de la barra: Acumulados al Iniciar (Texto negro)
+    # 1. Base de la barra: Acumulados al Iniciar
     fig2.add_trace(
         go.Bar(
             x=df_anual["MES"],
@@ -313,7 +407,7 @@ else:
         )
     )
 
-    # 2. Cima de la barra: Reportes Recibidos (Texto negro)
+    # 2. Cima de la barra: Reportes Recibidos
     fig2.add_trace(
         go.Bar(
             x=df_anual["MES"],
