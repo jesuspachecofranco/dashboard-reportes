@@ -111,7 +111,7 @@ else:
             marker_color="#e9f056",
             text=df_dia["REPORTES RECIBIDOS"],
             textposition="inside",
-            textfont=dict(color="white", size=11),
+            textfont=dict(color="black", size=11),
         )
     )
 
