@@ -95,12 +95,7 @@ else:
                 for k, v in meses_dict.items()
                 if v == mes_nombre_seleccionado
             ][0]
-        with col_s3:
-            st.subheader("Columna 3")
-            st.checkbox("Activar")
-        with col_s4:            
-        with col_s5:
-        with col_s6:
+
         # Definir dinámicamente el inicio y fin del mes seleccionado
         inicio_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado, month=mes_seleccionado, day=1
