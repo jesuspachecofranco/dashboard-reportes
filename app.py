@@ -10,6 +10,19 @@ st.set_page_config(
     page_title="Dashboard de Reportes", page_icon="📊", layout="wide"
 )
 
+# Estilo CSS para forzar la alineación horizontal perfecta y compacta de los selectores
+st.markdown(
+    """
+    <style>
+        /* Reduce los espacios verticales en blanco de los selectores */
+        div[data-testid="stHorizontalBlock"] > div {
+            align-items: flex-end;
+        }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
 st.title("📊 Control y Seguimiento de Incidencias")
 
 
@@ -38,7 +51,6 @@ if df is None:
         " directorio."
     )
 else:
-    # Columnas requeridas para mostrar en las tablas detalladas
     columnas_mostrar = [
         "INCIDENCIA",
         "RECEPCIÓN",
@@ -62,7 +74,7 @@ else:
     with tab1:
         st.subheader("Comportamiento Diario por Mes")
 
-        # Selectores en una sola fila estricta
+        # Selectores compartiendo la misma fila superior de forma estricta
         col_s1, col_s2, col_s3 = st.columns([1, 1, 2])
         with col_s1:
             anio_seleccionado = st.selectbox(
@@ -95,9 +107,7 @@ else:
                 if v == mes_nombre_seleccionado
             ][0]
 
-        st.markdown(
-            "---"
-        )  # Línea divisoria clara debajo de los selectores en fila única
+        st.markdown("---")
 
         inicio_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado, month=mes_seleccionado, day=1
