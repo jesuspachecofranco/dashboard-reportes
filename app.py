@@ -95,12 +95,26 @@ else:
                 k for k, v in meses_dict.items() if v == mes_nombre_seleccionado
             ][0]
         
-        # Como las variables ya existen gracias a las columnas de arriba, 
-        # podemos renderizar las métricas directamente en las columnas c1 a c4 de la misma fila:
+        st.markdown(
+            f"##### 📌 Resumen del Mes de {mes_nombre_seleccionado}"
+            f" {anio_seleccionado}"
+        )
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
         c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
         c3.metric("📊 Total Incidencias", f"{total_mes:,}")
         c4.metric("✅ Atendidos / Finalizados", f"{finalizados_mes:,}")
+        st.divider()
+
+        dias_mes = pd.date_range(
+            start=inicio_mes_dinamico,
+            end=pd.Timestamp(
+                year=anio_seleccionado,
+                month=mes_seleccionado,
+                day=ultimo_dia,
+            ),
+            freq="D",
+        )
         
         st.divider()
         # Definir dinámicamente el inicio y fin del mes seleccionado
