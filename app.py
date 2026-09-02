@@ -9,8 +9,6 @@ st.set_page_config(
     page_title="Dashboard de Reportes 2026", page_icon="📊", layout="wide"
 )
 
-st.title("📊 Control y Seguimiento de Incidencias")
-
 
 # Función para cargar y procesar los datos
 @st.cache_data
@@ -36,199 +34,375 @@ if df is None:
       "❌ No se encontró el archivo 'resultado_unificado.xlsx' en el directorio."
   )
 else:
-  # Pestañas principales de navegación
-  tab1, tab2 = st.tabs(["📅 Agosto Diario", "📈 Acumulados Anual (Hasta Agosto)"])
+  # ==========================================
+  # MENÚ DE NAVEGACIÓN LATERAL (PÁGINAS)
+  # ==========================================
+  st.sidebar.title("🧭 Menú de Navegación")
+  pagina = st.sidebar.radio(
+      "Selecciona una sección:",
+      ["📊 Dashboard General", "🔍 Buscador Global por Fecha"],
+  )
+
+  # Columnas requeridas para mostrar en las tablas detalladas
+  columnas_mostrar = [
+      "INCIDENCIA",
+      "RECEPCIÓN",
+      "FINALIZACIÓN",
+      "DIRECCIÓN",
+      "CLIENTE",
+      "MOTIVO",
+      "ESTADO",
+  ]
 
   # ==========================================
-  # PESTAÑA 1: AGOSTO DIARIO
+  # PÁGINA 1: DASHBOARD GENERAL
   # ==========================================
-  with tab1:
-    st.subheader("Comportamiento Diario - Agosto 2026")
+  if pagina == "📊 Dashboard General":
+    st.title("📊 Control y Seguimiento de Incidencias")
 
-    # Resumen General para Agosto (4 métricas coherentes)
-    inicio_agosto = pd.Timestamp("2026-08-01")
-    fin_agosto = pd.Timestamp("2026-09-01")
+    # Pestañas principales de navegación
+    tab1, tab2 = st.tabs(["📅 Agosto Diario", "📈 Acumulados Anual (Hasta Agosto)"])
 
-    acumulado_ago = int(
-        (
-            (df["RECEPCION_DT"] < inicio_agosto)
-            & (
-                df["FINALIZACION_DT"].isna()
-                | (df["FINALIZACION_DT"] >= inicio_agosto)
-            )
-        ).sum()
-    )
-    recibidos_ago = int(
-        (
-            (df["RECEPCION_DT"] >= inicio_agosto)
-            & (df["RECEPCION_DT"] < fin_agosto)
-        ).sum()
-    )
-    total_ago = acumulado_ago + recibidos_ago
-    finalizados_ago = int(
-        (
-            (df["FINALIZACION_DT"] >= inicio_agosto)
-            & (df["FINALIZACION_DT"] < fin_agosto)
-        ).sum()
-    )
+    # ------------------------------------------
+    # PESTAÑA 1: AGOSTO DIARIO
+    # ------------------------------------------
+    with tab1:
+      st.subheader("Comportamiento Diario - Agosto 2026")
 
-    st.markdown("##### 📌 Resumen del Mes de Agosto")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("📦 Acumulado Inicial", f"{acumulado_ago:,}")
-    c2.metric("📥 Recibidos", f"{recibidos_ago:,}")
-    c3.metric("📊 Total Incidencias", f"{total_ago:,}")
-    c4.metric("✅ Atendidos / Finalizados", f"{finalizados_ago:,}")
-    st.divider()
+      inicio_agosto = pd.Timestamp("2026-08-01")
+      fin_agosto = pd.Timestamp("2026-09-01")
 
-    dias_agosto = pd.date_range(
-        start="2026-08-01", end="2026-08-31", freq="D"
-    )
-    datos_diarios = []
-
-    for dia in dias_agosto:
-      inicio_dia = dia
-      fin_dia = dia + pd.Timedelta(days=1)
-      nombre_dia = dia.strftime("%d/%m/%Y")
-
-      cant_recibidos = int(
-          ((df["RECEPCION_DT"] >= inicio_dia) & (df["RECEPCION_DT"] < fin_dia))
-          .sum()
-      )
-      cant_acumulada = int(
+      acumulado_ago = int(
           (
-              (df["RECEPCION_DT"] < inicio_dia)
+              (df["RECEPCION_DT"] < inicio_agosto)
               & (
                   df["FINALIZACION_DT"].isna()
-                  | (df["FINALIZACION_DT"] >= inicio_dia)
+                  | (df["FINALIZACION_DT"] >= inicio_agosto)
               )
           ).sum()
       )
-      total_rep = cant_recibidos + cant_acumulada
-      cant_finalizados = int(
+      recibidos_ago = int(
           (
-              (df["FINALIZACION_DT"] >= inicio_dia)
-              & (df["FINALIZACION_DT"] < fin_dia)
+              (df["RECEPCION_DT"] >= inicio_agosto)
+              & (df["RECEPCION_DT"] < fin_agosto)
+          ).sum()
+      )
+      total_ago = acumulado_ago + recibidos_ago
+      finalizados_ago = int(
+          (
+              (df["FINALIZACION_DT"] >= inicio_agosto)
+              & (df["FINALIZACION_DT"] < fin_agosto)
           ).sum()
       )
 
-      datos_diarios.append({
-          "FECHA": nombre_dia,
-          "REPORTES RECIBIDOS": cant_recibidos,
-          "REPORTES ACUMULADOS AL INICIAR": cant_acumulada,
-          "TOTAL REPORTES": total_rep,
-          "REPORTES FINALIZADOS": cant_finalizados,
-      })
+      st.markdown("##### 📌 Resumen del Mes de Agosto")
+      c1, c2, c3, c4 = st.columns(4)
+      c1.metric("📦 Acumulado Inicial", f"{acumulado_ago:,}")
+      c2.metric("📥 Recibidos", f"{recibidos_ago:,}")
+      c3.metric("📊 Total Incidencias", f"{total_ago:,}")
+      c4.metric("✅ Atendidos / Finalizados", f"{finalizados_ago:,}")
+      st.divider()
 
-    df_dia = pd.DataFrame(datos_diarios)
+      dias_agosto = pd.date_range(
+          start="2026-08-01", end="2026-08-31", freq="D"
+      )
+      datos_diarios = []
 
-    # Gráfica Plotly Interactiva para Diario
-    fig1 = go.Figure()
+      for dia in dias_agosto:
+        inicio_dia = dia
+        fin_dia = dia + pd.Timedelta(days=1)
+        nombre_dia = dia.strftime("%d/%m/%Y")
 
-    # 1. Base de la barra: Acumulados al Iniciar
-    fig1.add_trace(
-        go.Bar(
-            x=df_dia["FECHA"],
-            y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
-            name="Acumulados al Iniciar",
-            marker_color="#d8e4fc",
-            text=df_dia["REPORTES ACUMULADOS AL INICIAR"],
-            textposition="inside",
-            textfont=dict(color="black", size=11),
+        cant_recibidos = int(
+            ((df["RECEPCION_DT"] >= inicio_dia) & (df["RECEPCION_DT"] < fin_dia))
+            .sum()
         )
-    )
-
-    # 2. Cima de la barra: Reportes Recibidos
-    fig1.add_trace(
-        go.Bar(
-            x=df_dia["FECHA"],
-            y=df_dia["REPORTES RECIBIDOS"],
-            name="Reportes Recibidos",
-            marker_color="#e9f056",
-            text=df_dia["REPORTES RECIBIDOS"],
-            textposition="inside",
-            textfont=dict(color="black", size=11),
+        cant_acumulada = int(
+            (
+                (df["RECEPCION_DT"] < inicio_dia)
+                & (
+                    df["FINALIZACION_DT"].isna()
+                    | (df["FINALIZACION_DT"] >= inicio_dia)
+                )
+            ).sum()
         )
-    )
-
-    # 3. Línea invisible de soporte para el Total en la cúspide
-    fig1.add_trace(
-        go.Scatter(
-            x=df_dia["FECHA"],
-            y=df_dia["TOTAL REPORTES"],
-            name="Total Reportes",
-            mode="text+markers",
-            text=df_dia["TOTAL REPORTES"],
-            textposition="top center",
-            textfont=dict(color="#1F4E78", size=12),
-            marker=dict(size=8, color="rgba(0,0,0,0)"),
-            showlegend=False,
+        total_rep = cant_recibidos + cant_acumulada
+        cant_finalizados = int(
+            (
+                (df["FINALIZACION_DT"] >= inicio_dia)
+                & (df["FINALIZACION_DT"] < fin_dia)
+            ).sum()
         )
-    )
 
-    # 4. Línea de Reportes Finalizados
-    fig1.add_trace(
-        go.Scatter(
-            x=df_dia["FECHA"],
-            y=df_dia["REPORTES FINALIZADOS"],
-            name="Reportes Finalizados",
-            mode="lines+markers+text",
-            text=df_dia["REPORTES FINALIZADOS"],
-            textposition="bottom center",
-            textfont=dict(color="#1d4ed8", size=11),
-            marker=dict(size=6, color="#1d4ed8"),
-            line=dict(color="#1d4ed8", width=2),
-        )
-    )
+        datos_diarios.append({
+            "FECHA": nombre_dia,
+            "REPORTES RECIBIDOS": cant_recibidos,
+            "REPORTES ACUMULADOS AL INICIAR": cant_acumulada,
+            "TOTAL REPORTES": total_rep,
+            "REPORTES FINALIZADOS": cant_finalizados,
+        })
 
-    fig1.update_layout(
-        title=dict(
-            text="<b>Flujo Diario de Reportes - Agosto 2026</b>",
-            font=dict(size=18, color="#1f4e78"),
-        ),
-        barmode="stack",
-        xaxis_title="<b>Día del Mes</b>",
-        yaxis_title="<b>Cantidad de Reportes</b>",
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+      df_dia = pd.DataFrame(datos_diarios)
 
-    # ==========================================
-    # NUEVA SECCIÓN: CONSULTA DETALLADA POR DÍA
-    # ==========================================
-    st.markdown("---")
-    st.subheader("🔍 Consulta Detallada de Incidencias por Día")
-    st.markdown(
-        "Selecciona un día del mes de Agosto para inspeccionar el detalle"
-        " exacto de los reportes acumulados, recibidos y finalizados."
-    )
+      # Gráfica Plotly Interactiva para Diario
+      fig1 = go.Figure()
 
-    col_sel1, col_sel2 = st.columns([1, 2])
-    with col_sel1:
-      dia_seleccionado = st.date_input(
-          "Seleccione la fecha:",
-          value=datetime(2026, 8, 12),
-          min_value=datetime(2026, 8, 1),
-          max_value=datetime(2026, 8, 31),
+      fig1.add_trace(
+          go.Bar(
+              x=df_dia["FECHA"],
+              y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
+              name="Acumulados al Iniciar",
+              marker_color="#d8e4fc",
+              text=df_dia["REPORTES ACUMULADOS AL INICIAR"],
+              textposition="inside",
+              textfont=dict(color="black", size=11),
+          )
       )
 
-    # Convertir fecha seleccionada a Timestamp para filtrar
-    inicio_sel = pd.Timestamp(dia_seleccionado)
+      fig1.add_trace(
+          go.Bar(
+              x=df_dia["FECHA"],
+              y=df_dia["REPORTES RECIBIDOS"],
+              name="Reportes Recibidos",
+              marker_color="#e9f056",
+              text=df_dia["REPORTES RECIBIDOS"],
+              textposition="inside",
+              textfont=dict(color="black", size=11),
+          )
+      )
+
+      fig1.add_trace(
+          go.Scatter(
+              x=df_dia["FECHA"],
+              y=df_dia["TOTAL REPORTES"],
+              name="Total Reportes",
+              mode="text+markers",
+              text=df_dia["TOTAL REPORTES"],
+              textposition="top center",
+              textfont=dict(color="#1F4E78", size=12),
+              marker=dict(size=8, color="rgba(0,0,0,0)"),
+              showlegend=False,
+          )
+      )
+
+      fig1.add_trace(
+          go.Scatter(
+              x=df_dia["FECHA"],
+              y=df_dia["REPORTES FINALIZADOS"],
+              name="Reportes Finalizados",
+              mode="lines+markers+text",
+              text=df_dia["REPORTES FINALIZADOS"],
+              textposition="bottom center",
+              textfont=dict(color="#1d4ed8", size=11),
+              marker=dict(size=6, color="#1d4ed8"),
+              line=dict(color="#1d4ed8", width=2),
+          )
+      )
+
+      fig1.update_layout(
+          title=dict(
+              text="<b>Flujo Diario de Reportes - Agosto 2026</b>",
+              font=dict(size=18, color="#1f4e78"),
+          ),
+          barmode="stack",
+          xaxis_title="<b>Día del Mes</b>",
+          yaxis_title="<b>Cantidad de Reportes</b>",
+          hovermode="x unified",
+          legend=dict(
+              orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1
+          ),
+      )
+      st.plotly_chart(fig1, use_container_width=True)
+
+      with st.expander("Ver tabla de datos diarios"):
+        st.dataframe(df_dia, use_container_width=True)
+
+    # ------------------------------------------
+    # PESTAÑA 2: ANUAL HASTA AGOSTO
+    # ------------------------------------------
+    with tab2:
+      st.subheader("Evolución Mensual (Hasta Agosto 2026)")
+
+      inicio_anio = pd.Timestamp("2026-01-01")
+      fin_anio = pd.Timestamp("2026-09-01")
+
+      acumulado_anio = int(
+          (
+              (df["RECEPCION_DT"] < inicio_anio)
+              & (
+                  df["FINALIZACION_DT"].isna()
+                  | (df["FINALIZACION_DT"] >= inicio_anio)
+              )
+          ).sum()
+      )
+      recibidos_anio = int(
+          (
+              (df["RECEPCION_DT"] >= inicio_anio)
+              & (df["RECEPCION_DT"] < fin_anio)
+          ).sum()
+      )
+      total_anio = acumulado_anio + recibidos_anio
+      finalizados_anio = int(
+          (
+              (df["FINALIZACION_DT"] >= inicio_anio)
+              & (df["FINALIZACION_DT"] < fin_anio)
+          ).sum()
+      )
+
+      st.markdown("##### 📌 Resumen Acumulado Anual (Enero - Agosto)")
+      ac1, ac2, ac3, ac4 = st.columns(4)
+      ac1.metric("📦 Acumulado Inicial", f"{acumulado_anio:,}")
+      ac2.metric("📥 Recibidos", f"{recibidos_anio:,}")
+      ac3.metric("📊 Total Incidencias", f"{total_anio:,}")
+      ac4.metric("✅ Atendidos / Finalizados", f"{finalizados_anio:,}")
+      st.divider()
+
+      meses_2026_hasta_agosto = [
+          (1, "ENERO"),
+          (2, "FEBRERO"),
+          (3, "MARZO"),
+          (4, "ABRIL"),
+          (5, "MAYO"),
+          (6, "JUNIO"),
+          (7, "JULIO"),
+          (8, "AGOSTO"),
+      ]
+      datos_anual = []
+
+      for num_mes, nombre_mes in meses_2026_hasta_agosto:
+        inicio_mes = pd.Timestamp(year=2026, month=num_mes, day=1)
+        fin_mes = (
+            pd.Timestamp(year=2027, month=1, day=1)
+            if num_mes == 12
+            else pd.Timestamp(year=2026, month=num_mes + 1, day=1)
+        )
+
+        cant_recibidos = int(
+            ((df["RECEPCION_DT"] >= inicio_mes) & (df["RECEPCION_DT"] < fin_mes))
+            .sum()
+        )
+        cant_acumulada = int(
+            (
+                (df["RECEPCION_DT"] < inicio_mes)
+                & (
+                    df["FINALIZACION_DT"].isna()
+                    | (df["FINALIZACION_DT"] >= inicio_mes)
+                )
+            ).sum()
+        )
+        total_rep = cant_recibidos + cant_acumulada
+        cant_finalizados = int(
+            (
+                (df["FINALIZACION_DT"] >= inicio_mes)
+                & (df["FINALIZACION_DT"] < fin_mes)
+            ).sum()
+        )
+
+        datos_anual.append({
+            "MES": nombre_mes,
+            "AÑO": 2026,
+            "REPORTES RECIBIDOS": cant_recibidos,
+            "REPORTES ACUMULADOS AL INICIAR": cant_acumulada,
+            "TOTAL REPORTES": total_rep,
+            "REPORTES FINALIZADOS": cant_finalizados,
+        })
+
+      df_anual = pd.DataFrame(datos_anual)
+
+      fig2 = go.Figure()
+
+      fig2.add_trace(
+          go.Bar(
+              x=df_anual["MES"],
+              y=df_anual["REPORTES ACUMULADOS AL INICIAR"],
+              name="Acumulados al Iniciar",
+              marker_color="#d8e4fc",
+              text=df_anual["REPORTES ACUMULADOS AL INICIAR"],
+              textposition="inside",
+              textfont=dict(color="black", size=14),
+          )
+      )
+
+      fig2.add_trace(
+          go.Bar(
+              x=df_anual["MES"],
+              y=df_anual["REPORTES RECIBIDOS"],
+              name="Reportes Recibidos",
+              marker_color="#e9f056",
+              text=df_anual["REPORTES RECIBIDOS"],
+              textposition="inside",
+              textfont=dict(color="black", size=14),
+          )
+      )
+
+      fig2.add_trace(
+          go.Scatter(
+              x=df_anual["MES"],
+              y=df_anual["TOTAL REPORTES"],
+              name="Total Reportes",
+              mode="text+markers",
+              text=df_anual["TOTAL REPORTES"],
+              textposition="top center",
+              textfont=dict(color="#1F4E78", size=14),
+              marker=dict(size=8, color="rgba(0,0,0,0)"),
+              showlegend=False,
+          )
+      )
+
+      fig2.add_trace(
+          go.Scatter(
+              x=df_anual["MES"],
+              y=df_anual["REPORTES FINALIZADOS"],
+              name="Reportes Finalizados",
+              mode="lines+markers+text",
+              text=df_anual["REPORTES FINALIZADOS"],
+              textposition="bottom center",
+              textfont=dict(color="#1d4ed8", size=14),
+              marker=dict(size=6, color="#1d4ed8"),
+              line=dict(color="#1d4ed8", width=2),
+          )
+      )
+
+      fig2.update_layout(
+          title=dict(
+              text="<b>Resumen Acumulado Mensual (Enero - Agosto 2026)</b>",
+              font=dict(size=18, color="#1F4E78"),
+          ),
+          barmode="stack",
+          xaxis_title="<b>Mes</b>",
+          yaxis_title="<b>Cantidad de Reportes</b>",
+          hovermode="x unified",
+          legend=dict(
+              orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1
+          ),
+      )
+      st.plotly_chart(fig2, use_container_width=True)
+
+      with st.expander("Ver tabla de datos mensuales"):
+        st.dataframe(df_anual, use_container_width=True)
+
+  # ==========================================
+  # PÁGINA 2: BUSCADOR GLOBAL POR FECHA
+  # ==========================================
+  elif pagina == "🔍 Buscador Global por Fecha":
+    st.title("🔍 Buscador Global de Incidencias por Fecha")
+    st.markdown(
+        "Selecciona **cualquier fecha** del año para consultar en detalle el"
+        " comportamiento de las incidencias (acumuladas pendientes, recibidas"
+        " y finalizadas)."
+    )
+
+    # Selector de fecha general sin restricciones duras de mes
+    col_f1, col_f2 = st.columns([1, 2])
+    with col_f1:
+      fecha_busqueda = st.date_input(
+          "Seleccione la fecha a auditar:", value=datetime(2026, 8, 12)
+      )
+
+    inicio_sel = pd.Timestamp(fecha_busqueda)
     fin_sel = inicio_sel + pd.Timedelta(days=1)
 
-    # Columnas que solicitaste mostrar
-    columnas_mostrar = [
-        "INCIDENCIA",
-        "RECEPCIÓN",
-        "FINALIZACIÓN",
-        "DIRECCIÓN",
-        "CLIENTE",
-        "MOTIVO",
-        "ESTADO",
-    ]
-
-    # Filtrar DataFrames específicos
-    # 1. Acumulados al iniciar el día (entraron antes y siguen sin finalizar, o finalizaron ese día o después)
+    # Filtrados de datos para la fecha seleccionada
     df_acumulados_dia = df[
         (df["RECEPCION_DT"] < inicio_sel)
         & (
@@ -237,29 +411,39 @@ else:
         )
     ]
 
-    # 2. Recibidos exactamente ese día
     df_recibidos_dia = df[
         (df["RECEPCION_DT"] >= inicio_sel) & (df["RECEPCION_DT"] < fin_sel)
     ]
 
-    # 3. Finalizados exactamente ese día
     df_finalizados_dia = df[
         (df["FINALIZACION_DT"] >= inicio_sel)
         & (df["FINALIZACION_DT"] < fin_sel)
     ]
 
-    # Pestañas o sub-secciones con expanders para cada categoría
-    st.markdown(
-        f"### Reporte Detallado para el día:"
-        f" {dia_seleccionado.strftime('%d/%m/%Y')}"
+    # Mostrar métricas rápidas del día seleccionado
+    st.markdown("---")
+    st.subheader(
+        f"📊 Resumen para el día: {fecha_busqueda.strftime('%d/%m/%Y')}"
     )
 
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("📦 Acumulados Previos", f"{len(df_acumulados_dia):,}")
+    m2.metric("📥 Recibidos en el día", f"{len(df_recibidos_dia):,}")
+    m3.metric(
+        "📊 Total Activos",
+        f"{len(df_acumulados_dia) + len(df_recibidos_dia):,}",
+    )
+    m4.metric("✅ Finalizados en el día", f"{len(df_finalizados_dia):,}")
+    st.markdown("---")
+
+    # Tablas detalladas con las columnas pedidas
     with st.expander(
-        f"📦 Incidencias Acumuladas Pendientes ({len(df_acumulados_dia)} registros)",
+        f"📦 1. Incidencias Acumuladas Pendientes ({len(df_acumulados_dia)}"
+        " registros)",
         expanded=True,
     ):
       st.markdown(
-          "*Casos que venían de días anteriores y seguían activos al iniciar"
+          "*Casos que venían de fechas anteriores y seguían activos al iniciar"
           " este día.*"
       )
       if not df_acumulados_dia.empty:
@@ -267,201 +451,32 @@ else:
             df_acumulados_dia[columnas_mostrar], use_container_width=True
         )
       else:
-        st.info("No hay registros acumulados para esta fecha.")
+        st.info("No hay registros acumulados pendientes para esta fecha.")
 
     with st.expander(
-        f"📥 Incidencias Recibidas ({len(df_recibidos_dia)} registros)"
+        f"📥 2. Incidencias Recibidas ({len(df_recibidos_dia)} registros)"
     ):
-      st.markdown("*Casos que ingresaron exactamente durante este día.*")
+      st.markdown(
+          "*Casos que ingresaron exactamente durante el transcurso de este"
+          " día.*"
+      )
       if not df_recibidos_dia.empty:
         st.dataframe(
             df_recibidos_dia[columnas_mostrar], use_container_width=True
         )
       else:
-        st.info("No se recibieron incidencias en esta fecha.")
+        st.info("No se registraron incidencias recibidas en esta fecha.")
 
     with st.expander(
-        f"✅ Incidencias Finalizadas / Atendidas ({len(df_finalizados_dia)} registros)"
+        f"✅ 3. Incidencias Finalizadas / Atendidas ({len(df_finalizados_dia)}"
+        " registros)"
     ):
       st.markdown(
-          "*Casos cuya fecha de finalización se registró durante este día.*"
+          "*Casos cuya atención o finalización se registró durante este día.*"
       )
       if not df_finalizados_dia.empty:
         st.dataframe(
             df_finalizados_dia[columnas_mostrar], use_container_width=True
         )
       else:
-        st.info("No hay incidencias finalizadas en esta fecha.")
-
-    st.divider()
-
-    with st.expander("Ver tabla general de datos diarios (Resumen)"):
-      st.dataframe(df_dia, use_container_width=True)
-
-  # ==========================================
-  # PESTAÑA 2: ANUAL HASTA AGOSTO
-  # ==========================================
-  with tab2:
-    st.subheader("Evolución Mensual (Hasta Agosto 2026)")
-
-    # Resumen General Anual (Ene - Ago 2026 con 4 métricas)
-    inicio_anio = pd.Timestamp("2026-01-01")
-    fin_anio = pd.Timestamp("2026-09-01")
-
-    acumulado_anio = int(
-        (
-            (df["RECEPCION_DT"] < inicio_anio)
-            & (
-                df["FINALIZACION_DT"].isna()
-                | (df["FINALIZACION_DT"] >= inicio_anio)
-            )
-        ).sum()
-    )
-    recibidos_anio = int(
-        (
-            (df["RECEPCION_DT"] >= inicio_anio)
-            & (df["RECEPCION_DT"] < fin_anio)
-        ).sum()
-    )
-    total_anio = acumulado_anio + recibidos_anio
-    finalizados_anio = int(
-        (
-            (df["FINALIZACION_DT"] >= inicio_anio)
-            & (df["FINALIZACION_DT"] < fin_anio)
-        ).sum()
-    )
-
-    st.markdown("##### 📌 Resumen Acumulado Anual (Enero - Agosto)")
-    ac1, ac2, ac3, ac4 = st.columns(4)
-    ac1.metric("📦 Acumulado Inicial", f"{acumulado_anio:,}")
-    ac2.metric("📥 Recibidos", f"{recibidos_anio:,}")
-    ac3.metric("📊 Total Incidencias", f"{total_anio:,}")
-    ac4.metric("✅ Atendidos / Finalizados", f"{finalizados_anio:,}")
-    st.divider()
-
-    meses_2026_hasta_agosto = [
-        (1, "ENERO"),
-        (2, "FEBRERO"),
-        (3, "MARZO"),
-        (4, "ABRIL"),
-        (5, "MAYO"),
-        (6, "JUNIO"),
-        (7, "JULIO"),
-        (8, "AGOSTO"),
-    ]
-    datos_anual = []
-
-    for num_mes, nombre_mes in meses_2026_hasta_agosto:
-      inicio_mes = pd.Timestamp(year=2026, month=num_mes, day=1)
-      fin_mes = (
-          pd.Timestamp(year=2027, month=1, day=1)
-          if num_mes == 12
-          else pd.Timestamp(year=2026, month=num_mes + 1, day=1)
-      )
-
-      cant_recibidos = int(
-          ((df["RECEPCION_DT"] >= inicio_mes) & (df["RECEPCION_DT"] < fin_mes))
-          .sum()
-      )
-      cant_acumulada = int(
-          (
-              (df["RECEPCION_DT"] < inicio_mes)
-              & (
-                  df["FINALIZACION_DT"].isna()
-                  | (df["FINALIZACION_DT"] >= inicio_mes)
-              )
-          ).sum()
-      )
-      total_rep = cant_recibidos + cant_acumulada
-      cant_finalizados = int(
-          (
-              (df["FINALIZACION_DT"] >= inicio_mes)
-              & (df["FINALIZACION_DT"] < fin_mes)
-          ).sum()
-      )
-
-      datos_anual.append({
-          "MES": nombre_mes,
-          "AÑO": 2026,
-          "REPORTES RECIBIDOS": cant_recibidos,
-          "REPORTES ACUMULADOS AL INICIAR": cant_acumulada,
-          "TOTAL REPORTES": total_rep,
-          "REPORTES FINALIZADOS": cant_finalizados,
-      })
-
-    df_anual = pd.DataFrame(datos_anual)
-
-    # Gráfica Plotly Interactiva para Anual
-    fig2 = go.Figure()
-
-    # 1. Base de la barra: Acumulados al Iniciar
-    fig2.add_trace(
-        go.Bar(
-            x=df_anual["MES"],
-            y=df_anual["REPORTES ACUMULADOS AL INICIAR"],
-            name="Acumulados al Iniciar",
-            marker_color="#d8e4fc",
-            text=df_anual["REPORTES ACUMULADOS AL INICIAR"],
-            textposition="inside",
-            textfont=dict(color="black", size=14),
-        )
-    )
-
-    # 2. Cima de la barra: Reportes Recibidos
-    fig2.add_trace(
-        go.Bar(
-            x=df_anual["MES"],
-            y=df_anual["REPORTES RECIBIDOS"],
-            name="Reportes Recibidos",
-            marker_color="#e9f056",
-            text=df_anual["REPORTES RECIBIDOS"],
-            textposition="inside",
-            textfont=dict(color="black", size=14),
-        )
-    )
-
-    # 3. Línea de soporte para el Total en la cúspide
-    fig2.add_trace(
-        go.Scatter(
-            x=df_anual["MES"],
-            y=df_anual["TOTAL REPORTES"],
-            name="Total Reportes",
-            mode="text+markers",
-            text=df_anual["TOTAL REPORTES"],
-            textposition="top center",
-            textfont=dict(color="#1F4E78", size=14),
-            marker=dict(size=8, color="rgba(0,0,0,0)"),
-            showlegend=False,
-        )
-    )
-
-    # 4. Línea de Reportes Finalizados
-    fig2.add_trace(
-        go.Scatter(
-            x=df_anual["MES"],
-            y=df_anual["REPORTES FINALIZADOS"],
-            name="Reportes Finalizados",
-            mode="lines+markers+text",
-            text=df_anual["REPORTES FINALIZADOS"],
-            textposition="bottom center",
-            textfont=dict(color="#1d4ed8", size=14),
-            marker=dict(size=6, color="#1d4ed8"),
-            line=dict(color="#1d4ed8", width=2),
-        )
-    )
-
-    fig2.update_layout(
-        title=dict(
-            text="<b>Resumen Acumulado Mensual (Enero - Agosto 2026)</b>",
-            font=dict(size=18, color="#1F4E78"),
-        ),
-        barmode="stack",
-        xaxis_title="<b>Mes</b>",
-        yaxis_title="<b>Cantidad de Reportes</b>",
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
-    )
-    st.plotly_chart(fig2, use_container_width=True)
-
-    with st.expander("Ver tabla de datos mensuales"):
-      st.dataframe(df_anual, use_container_width=True)
+        st.info("No hay incidencias finalizadas registradas en esta fecha.")
