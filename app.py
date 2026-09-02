@@ -95,7 +95,7 @@ else:
             x=df_dia["FECHA"],
             y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             name="Acumulados al Iniciar",
-            marker_color="#85c1e9",
+            marker_color="#B4D8EE",
             text=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             textposition="inside",
             insidetextanchor="middle",
