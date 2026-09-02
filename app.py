@@ -209,7 +209,7 @@ else:
   # PESTAÑA 2: ANUAL HASTA AGOSTO
   # ==========================================
   with tab2:
-    st.subheader("Evolución Mensual (Hasta Agosto 2026)")
+    st.subheader("Evolución Mensual")
 
     inicio_anio = pd.Timestamp("2026-01-01")
     fin_anio = pd.Timestamp("2026-09-01")
