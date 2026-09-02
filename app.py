@@ -61,14 +61,16 @@ else:
     # ==========================================
     with tab1:
         st.subheader("📅 Comportamiento Diario por Mes")
-
-        # Selectores para elegir el Año y el Mes que desees visualizar
-        col_s1, col_s2, _ = st.columns([1, 1, 2])
+        
+        # Creamos 6 columnas en total: 
+        # col_s1 y col_s2 para los selectores, y c1, c2, c3, c4 para las métricas
+        col_s1, col_s2, c1, c2, c3, c4 = st.columns([1, 1, 1, 1, 1, 1])
+        
         with col_s1:
-            # Puedes ajustar el rango de años según tus necesidades
             anio_seleccionado = st.selectbox(
                 "Seleccione el Año:", [2025, 2026, 2027], index=1
             )
+        
         with col_s2:
             meses_dict = {
                 1: "Enero",
@@ -88,14 +90,19 @@ else:
                 "Seleccione el Mes:",
                 list(meses_dict.values()),
                 index=7,
-            )  # Por defecto Agosto (índice 7)
-            # Recuperar el número del mes seleccionado
+            )
             mes_seleccionado = [
-                k
-                for k, v in meses_dict.items()
-                if v == mes_nombre_seleccionado
+                k for k, v in meses_dict.items() if v == mes_nombre_seleccionado
             ][0]
-
+        
+        # Como las variables ya existen gracias a las columnas de arriba, 
+        # podemos renderizar las métricas directamente en las columnas c1 a c4 de la misma fila:
+        c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
+        c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
+        c3.metric("📊 Total Incidencias", f"{total_mes:,}")
+        c4.metric("✅ Atendidos / Finalizados", f"{finalizados_mes:,}")
+        
+        st.divider()
         # Definir dinámicamente el inicio y fin del mes seleccionado
         inicio_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado, month=mes_seleccionado, day=1
