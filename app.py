@@ -45,16 +45,26 @@ else:
   with tab1:
     st.subheader("Comportamiento Diario - Agosto 2026")
 
-    # Resumen General para Agosto
+    # Resumen General para Agosto (4 métricas coherentes)
     inicio_agosto = pd.Timestamp("2026-08-01")
     fin_agosto = pd.Timestamp("2026-09-01")
 
+    acumulado_ago = int(
+        (
+            (df["RECEPCION_DT"] < inicio_agosto)
+            & (
+                df["FINALIZACION_DT"].isna()
+                | (df["FINALIZACION_DT"] >= inicio_agosto)
+            )
+        ).sum()
+    )
     recibidos_ago = int(
         (
             (df["RECEPCION_DT"] >= inicio_agosto)
             & (df["RECEPCION_DT"] < fin_agosto)
         ).sum()
     )
+    total_ago = acumulado_ago + recibidos_ago
     finalizados_ago = int(
         (
             (df["FINALIZACION_DT"] >= inicio_agosto)
@@ -63,9 +73,11 @@ else:
     )
 
     st.markdown("##### 📌 Resumen del Mes de Agosto")
-    m1, m2 = st.columns(2)
-    m1.metric("📥 Total Recibidos en Agosto", f"{recibidos_ago:,}")
-    m2.metric("✅ Total Finalizados en Agosto", f"{finalizados_ago:,}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("📦 Acumulado Inicial", f"{acumulado_ago:,}")
+    c2.metric("📥 Recibidos", f"{recibidos_ago:,}")
+    c3.metric("📊 Total Incidencias", f"{total_ago:,}")
+    c4.metric("✅ Atendidos / Finalizados", f"{finalizados_ago:,}")
     st.divider()
 
     dias_agosto = pd.date_range(
@@ -190,17 +202,27 @@ else:
   with tab2:
     st.subheader("Evolución Mensual (Hasta Agosto 2026)")
 
-    # Resumen General Anual (Ene - Ago 2026)
+    # Resumen General Anual (Ene - Ago 2026 con 4 métricas)
     inicio_anio = pd.Timestamp("2026-01-01")
     fin_anio = pd.Timestamp("2026-09-01")
 
-    recibidos_anual = int(
+    acumulado_anio = int(
+        (
+            (df["RECEPCION_DT"] < inicio_anio)
+            & (
+                df["FINALIZACION_DT"].isna()
+                | (df["FINALIZACION_DT"] >= inicio_anio)
+            )
+        ).sum()
+    )
+    recibidos_anio = int(
         (
             (df["RECEPCION_DT"] >= inicio_anio)
             & (df["RECEPCION_DT"] < fin_anio)
         ).sum()
     )
-    finalizados_anual = int(
+    total_anio = acumulado_anio + recibidos_anio
+    finalizados_anio = int(
         (
             (df["FINALIZACION_DT"] >= inicio_anio)
             & (df["FINALIZACION_DT"] < fin_anio)
@@ -208,9 +230,11 @@ else:
     )
 
     st.markdown("##### 📌 Resumen Acumulado Anual (Enero - Agosto)")
-    a1, a2 = st.columns(2)
-    a1.metric("📥 Total Recibidos en el Año", f"{recibidos_anual:,}")
-    a2.metric("✅ Total Finalizados en el Año", f"{finalizados_anual:,}")
+    ac1, ac2, ac3, ac4 = st.columns(4)
+    ac1.metric("📦 Acumulado Inicial", f"{acumulado_anio:,}")
+    ac2.metric("📥 Recibidos", f"{recibidos_anio:,}")
+    ac3.metric("📊 Total Incidencias", f"{total_anio:,}")
+    ac4.metric("✅ Atendidos / Finalizados", f"{finalizados_anio:,}")
     st.divider()
 
     meses_2026_hasta_agosto = [
