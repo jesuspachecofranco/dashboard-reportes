@@ -99,14 +99,8 @@ else:
             st.subheader("Columna 3")
             st.checkbox("Activar")
         with col_s4:            
-            st.subheader("Columna 4")
-            st.checkbox("Activar")
         with col_s5:
-            st.subheader("Columna 5")
-            st.checkbox("Activar")
         with col_s6:
-            st.subheader("Columna 6")
-            st.checkbox("Activar")
         # Definir dinámicamente el inicio y fin del mes seleccionado
         inicio_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado, month=mes_seleccionado, day=1
