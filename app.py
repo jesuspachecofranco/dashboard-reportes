@@ -60,7 +60,7 @@ else:
     # PESTAÑA 1: SEGUIMIENTO DIARIO DINÁMICO
     # ==========================================
     with tab1:
-        st.subheader("Comportamiento Diario por Mes")
+        st.subheader("📅 Comportamiento Diario por Mes")
 
         # Selectores para elegir el Año y el Mes que desees visualizar
         col_s1, col_s2, _ = st.columns([1, 1, 2])
@@ -271,7 +271,7 @@ else:
     # PESTAÑA 2: ANUAL HASTA AGOSTO
     # ==========================================
     with tab2:
-        st.subheader("Seguimiento Mensual")
+        st.subheader("📈 Seguimiento Mensual")
 
         inicio_anio = pd.Timestamp("2026-01-01")
         fin_anio = pd.Timestamp("2026-09-01")
