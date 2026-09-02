@@ -7,7 +7,7 @@ import streamlit as st
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Dashboard de Reportes 2026", page_icon="📊", layout="wide"
+    page_title="Dashboard de Reportes", page_icon="📊", layout="wide"
 )
 
 st.title("📊 Control y Seguimiento de Incidencias")
@@ -62,12 +62,11 @@ else:
     with tab1:
         st.subheader("Comportamiento Diario por Mes")
 
-        # Selectores para elegir el Año y el Mes que desees visualizar
-        col_s1, col_s2, _ = st.columns([1, 1, 2])
+        # Controles de filtros en una sola fila equilibrada
+        col_s1, col_s2, col_vacio = st.columns([1, 1, 2])
         with col_s1:
-            # Puedes ajustar el rango de años según tus necesidades
             anio_seleccionado = st.selectbox(
-                "Seleccione el Año:", [2025, 2026, 2027], index=1
+                "Seleccione el Año:", [2025, 2026, 2027], index=1, key="anio_t1"
             )
         with col_s2:
             meses_dict = {
@@ -88,20 +87,19 @@ else:
                 "Seleccione el Mes:",
                 list(meses_dict.values()),
                 index=7,
-            )  # Por defecto Agosto (índice 7)
-            # Recuperar el número del mes seleccionado
+                key="mes_t1",
+            )
             mes_seleccionado = [
                 k
                 for k, v in meses_dict.items()
                 if v == mes_nombre_seleccionado
             ][0]
 
-        # Definir dinámicamente el inicio y fin del mes seleccionado
+        st.divider()
+
         inicio_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado, month=mes_seleccionado, day=1
         )
-
-        # Calcular el último día del mes de forma exacta
         ultimo_dia = calendar.monthrange(anio_seleccionado, mes_seleccionado)[1]
         fin_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado,
@@ -193,7 +191,6 @@ else:
         df_dia = pd.DataFrame(datos_diarios)
 
         fig1 = go.Figure()
-
         fig1.add_trace(
             go.Bar(
                 x=df_dia["FECHA"],
@@ -205,7 +202,6 @@ else:
                 textfont=dict(color="black", size=11),
             )
         )
-
         fig1.add_trace(
             go.Bar(
                 x=df_dia["FECHA"],
@@ -217,7 +213,6 @@ else:
                 textfont=dict(color="black", size=11),
             )
         )
-
         fig1.add_trace(
             go.Scatter(
                 x=df_dia["FECHA"],
@@ -231,7 +226,6 @@ else:
                 showlegend=False,
             )
         )
-
         fig1.add_trace(
             go.Scatter(
                 x=df_dia["FECHA"],
@@ -245,7 +239,6 @@ else:
                 line=dict(color="#1d4ed8", width=2),
             )
         )
-
         fig1.update_layout(
             title=dict(
                 text=(
@@ -268,13 +261,27 @@ else:
             st.dataframe(df_dia, use_container_width=True)
 
     # ==========================================
-    # PESTAÑA 2: ANUAL HASTA AGOSTO
+    # PESTAÑA 2: SEGUIMIENTO ANUAL DINÁMICO
     # ==========================================
     with tab2:
-        st.subheader("Seguimiento Mensual")
+        st.subheader("Seguimiento Mensual Acumulado")
 
-        inicio_anio = pd.Timestamp("2026-01-01")
-        fin_anio = pd.Timestamp("2026-09-01")
+        # Selector de año adaptado para la sección anual también
+        col_sa1, col_sa2 = st.columns([1, 3])
+        with col_sa1:
+            anio_anual = st.selectbox(
+                "Seleccione el Año Anual:",
+                [2025, 2026, 2027],
+                index=1,
+                key="anio_t2",
+            )
+
+        st.divider()
+
+        inicio_anio = pd.Timestamp(year=anio_anual, month=1, day=1)
+        fin_anio = pd.Timestamp(
+            year=anio_anual + 1, month=1, day=1
+        )  # Cierra el año completo
 
         acumulado_anio = int(
             (
@@ -299,7 +306,7 @@ else:
             ).sum()
         )
 
-        st.markdown("##### 📌 Resumen Acumulado Anual (Enero - Agosto)")
+        st.markdown(f"##### 📌 Resumen Acumulado Anual ({anio_anual})")
         ac1, ac2, ac3, ac4 = st.columns(4)
         ac1.metric("📦 Acumulado Inicial", f"{acumulado_anio:,}")
         ac2.metric("📥 Recibidos", f"{recibidos_anio:,}")
@@ -307,7 +314,7 @@ else:
         ac4.metric("✅ Atendidos / Finalizados", f"{finalizados_anio:,}")
         st.divider()
 
-        meses_2026_hasta_agosto = [
+        meses_anio_completo = [
             (1, "ENERO"),
             (2, "FEBRERO"),
             (3, "MARZO"),
@@ -316,15 +323,19 @@ else:
             (6, "JUNIO"),
             (7, "JULIO"),
             (8, "AGOSTO"),
+            (9, "SEPTIEMBRE"),
+            (10, "OCTUBRE"),
+            (11, "NOVIEMBRE"),
+            (12, "DICIEMBRE"),
         ]
         datos_anual = []
 
-        for num_mes, nombre_mes in meses_2026_hasta_agosto:
-            inicio_mes = pd.Timestamp(year=2026, month=num_mes, day=1)
+        for num_mes, nombre_mes in meses_anio_completo:
+            inicio_mes = pd.Timestamp(year=anio_anual, month=num_mes, day=1)
             fin_mes = (
-                pd.Timestamp(year=2027, month=1, day=1)
+                pd.Timestamp(year=anio_anual + 1, month=1, day=1)
                 if num_mes == 12
-                else pd.Timestamp(year=2026, month=num_mes + 1, day=1)
+                else pd.Timestamp(year=anio_anual, month=num_mes + 1, day=1)
             )
 
             cant_recibidos = int(
@@ -352,7 +363,7 @@ else:
 
             datos_anual.append({
                 "MES": nombre_mes,
-                "AÑO": 2026,
+                "AÑO": anio_anual,
                 "REPORTES RECIBIDOS": cant_recibidos,
                 "REPORTES ACUMULADOS AL INICIAR": cant_acumulada,
                 "TOTAL REPORTES": total_rep,
@@ -362,7 +373,6 @@ else:
         df_anual = pd.DataFrame(datos_anual)
 
         fig2 = go.Figure()
-
         fig2.add_trace(
             go.Bar(
                 x=df_anual["MES"],
@@ -374,7 +384,6 @@ else:
                 textfont=dict(color="black", size=14),
             )
         )
-
         fig2.add_trace(
             go.Bar(
                 x=df_anual["MES"],
@@ -386,7 +395,6 @@ else:
                 textfont=dict(color="black", size=14),
             )
         )
-
         fig2.add_trace(
             go.Scatter(
                 x=df_anual["MES"],
@@ -400,7 +408,6 @@ else:
                 showlegend=False,
             )
         )
-
         fig2.add_trace(
             go.Scatter(
                 x=df_anual["MES"],
@@ -414,12 +421,9 @@ else:
                 line=dict(color="#1d4ed8", width=2),
             )
         )
-
         fig2.update_layout(
             title=dict(
-                text=(
-                    "<b>Resumen Acumulado Mensual (Enero - Agosto 2026)</b>"
-                ),
+                text=f"<b>Resumen Acumulado Mensual ({anio_anual})</b>",
                 font=dict(size=18, color="#1F4E78"),
             ),
             barmode="stack",
@@ -461,11 +465,9 @@ else:
                 | (df["FINALIZACION_DT"] >= inicio_sel)
             )
         ]
-
         df_recibidos_dia = df[
             (df["RECEPCION_DT"] >= inicio_sel) & (df["RECEPCION_DT"] < fin_sel)
         ]
-
         df_finalizados_dia = df[
             (df["FINALIZACION_DT"] >= inicio_sel)
             & (df["FINALIZACION_DT"] < fin_sel)
