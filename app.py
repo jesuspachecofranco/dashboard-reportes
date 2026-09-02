@@ -230,7 +230,7 @@ else:
             name="Acumulados al Iniciar",
             marker_color="#d8e4fc",
             text=df_anual["REPORTES ACUMULADOS AL INICIAR"],
-            textposition="middle",
+            textposition="inside",
             textfont=dict(color="black", size=12),
         )
     )
