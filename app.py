@@ -490,14 +490,22 @@ else:
             f"##### 📊 Resumen para el día: {fecha_busqueda.strftime('%d/%m/%Y')}"
         )
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("📦 Acumulados Previos", f"{len(df_acumulados_dia):,}")
-        m2.metric("📥 Recibidos en el día", f"{len(df_recibidos_dia):,}")
-        m3.metric(
-            "📊 Total Activos",
-            f"{len(df_acumulados_dia) + len(df_recibidos_dia):,}",
+        total_activos_dia = len(df_acumulados_dia) + len(df_recibidos_dia)
+        total_finalizados_dia = len(df_finalizados_dia)
+        efectividad_dia_busqueda = (
+            (total_finalizados_dia / total_activos_dia * 100)
+            if total_activos_dia > 0
+            else 0.0
         )
-        m4.metric("✅ Finalizados en el día", f"{len(df_finalizados_dia):,}")
+        pendientes_dia_busqueda = total_activos_dia - total_finalizados_dia
+
+        m1, m2, m3, m4, m5, m6 = st.columns(6)
+        m1.metric("📦 Acumulados Previos", f"{len(df_acumulados_dia):,}")
+        m2.metric("📥 Recibidos", f"{len(df_recibidos_dia):,}")
+        m3.metric("📊 Total Activos", f"{total_activos_dia:,}")
+        m4.metric("✅ Finalizados", f"{total_finalizados_dia:,}")
+        m5.metric("⏳ Pendientes", f"{pendientes_dia_busqueda:,}")
+        m6.metric("🎯 Efectividad", f"{efectividad_dia_busqueda:.1f}%")
         st.markdown("---")
 
         with st.expander(
