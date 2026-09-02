@@ -95,7 +95,7 @@ else:
             x=df_dia["FECHA"],
             y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             name="Acumulados al Iniciar",
-            marker_color="#D6E8FF",
+            marker_color="#d8e4fc",
             text=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             textposition="inside",
             textfont=dict(color="black", size=11),
@@ -108,7 +108,7 @@ else:
             x=df_dia["FECHA"],
             y=df_dia["REPORTES RECIBIDOS"],
             name="Reportes Recibidos",
-            marker_color="#2E80CC",
+            marker_color="#6391f4",
             text=df_dia["REPORTES RECIBIDOS"],
             textposition="inside",
             textfont=dict(color="white", size=11),
@@ -139,9 +139,9 @@ else:
             mode="lines+markers+text",
             text=df_dia["REPORTES FINALIZADOS"],
             textposition="top center",
-            textfont=dict(color="#27AE60", size=11),
-            marker=dict(size=6, color="#27AE60"),
-            line=dict(color="#27AE60", width=2),
+            textfont=dict(color="#ffbb38", size=11),
+            marker=dict(size=6, color="#ffbb38"),
+            line=dict(color="#ffbb38", width=2),
         )
     )
 
