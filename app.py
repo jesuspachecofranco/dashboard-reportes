@@ -158,7 +158,8 @@ else:
     fig1.update_layout(
         title=dict(
             text="<b>Flujo Diario de Reportes - Agosto 2026</b>",
-            font=dict(size=18, color="#191919"),
+            font=dict(
+                size=18, color="#191919"),
         ),
         barmode="stack",
         xaxis_title=dict(
