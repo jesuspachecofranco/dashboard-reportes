@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("📊 Control y Seguimiento de Incidencias")
 
 
-# Función para cargar y procesar los datos
+# --- AQUÍ VAS A REEMPLAZAR TU FUNCIÓN CARGAR_DATOS ACTUAL ---
 @st.cache_data
 def cargar_datos():
   archivo_entrada = "resultado_unificado.xlsx"
@@ -20,14 +20,22 @@ def cargar_datos():
     return None
 
   df = pd.read_excel(archivo_entrada)
+
+  # LIMPIEZA DE FILAS VACÍAS O INCOMPLETAS:
+  # Esto elimina automáticamente las filas que no tienen fecha de recepción (basura, celdas en blanco o solo con zona)
+  df = df.dropna(subset=["RECEPCIÓN"])
+
   df["RECEPCION_DT"] = pd.to_datetime(
       df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
   )
   df["FINALIZACION_DT"] = pd.to_datetime(
       df["FINALIZACIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
   )
-  return df
 
+  # Elimina filas donde la conversión de fecha haya fallado (NaT)
+  df = df.dropna(subset=["RECEPCION_DT"])
+
+  return df
 
 df = cargar_datos()
 
