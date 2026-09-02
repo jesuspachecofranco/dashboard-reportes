@@ -65,7 +65,6 @@ else:
         # Selectores para elegir el Año y el Mes que desees visualizar
         col_s1, col_s2, _ = st.columns([1, 1, 2])
         with col_s1:
-            # Puedes ajustar el rango de años según tus necesidades
             anio_seleccionado = st.selectbox(
                 "Seleccione el Año:", [2025, 2026, 2027], index=1
             )
@@ -88,8 +87,7 @@ else:
                 "Seleccione el Mes:",
                 list(meses_dict.values()),
                 index=7,
-            )  # Por defecto Agosto (índice 7)
-            # Recuperar el número del mes seleccionado
+            )
             mes_seleccionado = [
                 k
                 for k, v in meses_dict.items()
@@ -101,7 +99,6 @@ else:
             year=anio_seleccionado, month=mes_seleccionado, day=1
         )
 
-        # Calcular el último día del mes de forma exacta
         ultimo_dia = calendar.monthrange(anio_seleccionado, mes_seleccionado)[1]
         fin_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado,
@@ -131,17 +128,7 @@ else:
                 & (df["FINALIZACION_DT"] < fin_mes_dinamico)
             ).sum()
         )
-
-        st.markdown(
-            f"##### 📌 Resumen del Mes de {mes_nombre_seleccionado}"
-            f" {anio_seleccionado}"
-        )
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
-        c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
-        c3.metric("📊 Total Incidencias", f"{total_mes:,}")
-        c4.metric("✅ Atendidos / Finalizados", f"{finalizados_mes:,}")
-        st.divider()
+        pendientes_mes = total_mes - finalizados_mes
 
         dias_mes = pd.date_range(
             start=inicio_mes_dinamico,
@@ -182,15 +169,36 @@ else:
                 ).sum()
             )
 
+            efectividad_dia = (
+                (cant_finalizados / total_rep * 100) if total_rep > 0 else 0.0
+            )
+
             datos_diarios.append({
                 "FECHA": nombre_dia,
                 "REPORTES RECIBIDOS": cant_recibidos,
                 "REPORTES ACUMULADOS AL INICIAR": cant_acumulada,
                 "TOTAL REPORTES": total_rep,
                 "REPORTES FINALIZADOS": cant_finalizados,
+                "EFECTIVIDAD (%)": round(efectividad_dia, 2),
             })
 
         df_dia = pd.DataFrame(datos_diarios)
+        efectividad_promedio_mes = (
+            df_dia["EFECTIVIDAD (%)"].mean() if not df_dia.empty else 0.0
+        )
+
+        st.markdown(
+            f"##### 📌 Resumen del Mes de {mes_nombre_seleccionado}"
+            f" {anio_seleccionado}"
+        )
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
+        c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
+        c3.metric("📊 Total Incidencias", f"{total_mes:,}")
+        c4.metric("✅ Finalizados", f"{finalizados_mes:,}")
+        c5.metric("⏳ Pendientes", f"{pendientes_mes:,}")
+        c6.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
+        st.divider()
 
         fig1 = go.Figure()
 
@@ -298,13 +306,19 @@ else:
                 & (df["FINALIZACION_DT"] < fin_anio)
             ).sum()
         )
+        pendientes_anio = total_anio - finalizados_anio
+        efectividad_global_anio = (
+            (finalizados_anio / total_anio * 100) if total_anio > 0 else 0.0
+        )
 
         st.markdown("##### 📌 Resumen Acumulado Anual (Enero - Agosto)")
-        ac1, ac2, ac3, ac4 = st.columns(4)
+        ac1, ac2, ac3, ac4, ac5, ac6 = st.columns(6)
         ac1.metric("📦 Acumulado Inicial", f"{acumulado_anio:,}")
         ac2.metric("📥 Recibidos", f"{recibidos_anio:,}")
         ac3.metric("📊 Total Incidencias", f"{total_anio:,}")
-        ac4.metric("✅ Atendidos / Finalizados", f"{finalizados_anio:,}")
+        ac4.metric("✅ Finalizados", f"{finalizados_anio:,}")
+        ac5.metric("⏳ Pendientes", f"{pendientes_anio:,}")
+        ac6.metric("🎯 Efectividad Global", f"{efectividad_global_anio:.1f}%")
         st.divider()
 
         meses_2026_hasta_agosto = [
