@@ -139,9 +139,9 @@ else:
             mode="lines+markers+text",
             text=df_dia["REPORTES FINALIZADOS"],
             textposition="top center",
-            textfont=dict(color="#6695f7", size=11),
-            marker=dict(size=6, color="#6695f7"),
-            line=dict(color="#6695f7", width=2),
+            textfont=dict(color="#1d4ed8", size=11),
+            marker=dict(size=6, color="#1d4ed8"),
+            line=dict(color="#1d4ed8", width=2),
         )
     )
 
