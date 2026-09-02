@@ -62,8 +62,8 @@ else:
     with tab1:
         st.subheader("Comportamiento Diario por Mes")
 
-        # Controles de filtros en una sola fila equilibrada
-        col_s1, col_s2, col_vacio = st.columns([1, 1, 2])
+        # Selectores en una sola fila compacta usando las mismas columnas
+        col_s1, col_s2, col_s3 = st.columns([1, 1, 2])
         with col_s1:
             anio_seleccionado = st.selectbox(
                 "Seleccione el Año:", [2025, 2026, 2027], index=1, key="anio_t1"
@@ -266,7 +266,6 @@ else:
     with tab2:
         st.subheader("Seguimiento Mensual Acumulado")
 
-        # Selector de año adaptado para la sección anual también
         col_sa1, col_sa2 = st.columns([1, 3])
         with col_sa1:
             anio_anual = st.selectbox(
@@ -279,9 +278,7 @@ else:
         st.divider()
 
         inicio_anio = pd.Timestamp(year=anio_anual, month=1, day=1)
-        fin_anio = pd.Timestamp(
-            year=anio_anual + 1, month=1, day=1
-        )  # Cierra el año completo
+        fin_anio = pd.Timestamp(year=anio_anual + 1, month=1, day=1)
 
         acumulado_anio = int(
             (
