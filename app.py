@@ -231,7 +231,7 @@ else:
             marker_color="#d8e4fc",
             text=df_anual["REPORTES ACUMULADOS AL INICIAR"],
             textposition="inside",
-            textfont=dict(color="black", size=12),
+            textfont=dict(color="black", size=16),
         )
     )
 
@@ -244,7 +244,7 @@ else:
             marker_color="#e9f056",
             text=df_anual["REPORTES RECIBIDOS"],
             textposition="inside",
-            textfont=dict(color="black", size=12),
+            textfont=dict(color="black", size=16),
         )
     )
 
@@ -272,7 +272,7 @@ else:
             mode="lines+markers+text",
             text=df_anual["REPORTES FINALIZADOS"],
             textposition="bottom center",
-            textfont=dict(color="#1d4ed8", size=12),
+            textfont=dict(color="#1d4ed8", size=16),
             marker=dict(size=6, color="#1d4ed8"),
             line=dict(color="#1d4ed8", width=2),
         )
