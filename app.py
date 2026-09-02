@@ -36,6 +36,19 @@ if df is None:
       "❌ No se encontró el archivo 'resultado_unificado.xlsx' en el directorio."
   )
 else:
+  # Métricas generales globales (Vista resumen tipo tarjetas)
+  total_registrados = len(df)
+  total_finalizados = df["FINALIZACION_DT"].notna().sum()
+  total_pendientes = df["FINALIZACION_DT"].isna().sum()
+
+  st.markdown("### 📌 Resumen General")
+  col1, col2, col3 = st.columns(3)
+  col1.metric("Total Reportes Históricos", f"{total_registrados:,}")
+  col2.metric("Total Finalizados", f"{total_finalizados:,}")
+  col3.metric("Total Pendientes / Activos", f"{total_pendientes:,}")
+
+  st.divider()
+
   # Pestañas principales de navegación
   tab1, tab2 = st.tabs(["📅 Agosto Diario", "📈 Acumulados Anual (Hasta Agosto)"])
 
@@ -148,9 +161,9 @@ else:
     fig1.update_layout(
         title=dict(
             text="<b>Flujo Diario de Reportes - Agosto 2026</b>",
-            font=dict(
-                size=18, color="#1f4e78"),
-        ),barmode="stack",
+            font=dict(size=18, color="#1f4e78"),
+        ),
+        barmode="stack",
         xaxis_title="<b>Día del Mes</b>",
         yaxis_title="<b>Cantidad de Reportes</b>",
         hovermode="x unified",
