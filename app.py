@@ -63,7 +63,7 @@ else:
         st.subheader("📅 Comportamiento Diario por Mes")
 
         # Selectores para elegir el Año y el Mes que desees visualizar
-        col_s1, col_s2, col_s3,col_s4,col_s5,col_s6, = st.columns([1, 1, 1, 1, 1, 1])
+        col_s1, col_s2, _ = st.columns([1, 1, 2])
         with col_s1:
             # Puedes ajustar el rango de años según tus necesidades
             anio_seleccionado = st.selectbox(
