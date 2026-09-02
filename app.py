@@ -8,7 +8,17 @@ import streamlit as st
 st.set_page_config(
     page_title="Dashboard de Reportes 2026", page_icon="📊", layout="wide"
 )
-
+# --- AQUÍ AGREGAS ESTE BLOQUE PARA EL FONDO DE LA APP ---
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #fafbfc; /* <--- AQUÍ CAMBIAS EL COLOR DE FONDO (ej. códigos HEX o nombres como 'white') */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.title("📊 Control y Seguimiento de Incidencias")
 
 
@@ -148,11 +158,21 @@ else:
     fig1.update_layout(
         title=dict(
             text="<b>Flujo Diario de Reportes - Agosto 2026</b>",
-            font=dict(size=18, color="#1F4E78"),
+            font=dict(size=18, color="#191919"),
         ),
         barmode="stack",
-        xaxis_title="<b>Día del Mes</b>",
-        yaxis_title="<b>Cantidad de Reportes</b>",
+        xaxis_title=dict(
+            title="<b>Día del Mes</b>",
+            title_font=dict(color="#191919"),  # <--- COLOR TÍTULO EJE X
+            tickfont=dict(color="#191919"),  # <--- COLOR ETIQUETAS EJE X
+            linecolor="#191919",  # <--- COLOR DE LA LÍNEA DEL EJE X
+        ),
+        yaxis_title=dict(
+            title="<b>Cantidad de Reportes</b>",
+            title_font=dict(color="#191919"),  # <--- COLOR TÍTULO EJE Y
+            tickfont=dict(color="#191919"),  # <--- COLOR ETIQUETAS EJE Y
+            linecolor="#191919",  # <--- COLOR DE LA LÍNEA DEL EJE Y
+        ),
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
     )
