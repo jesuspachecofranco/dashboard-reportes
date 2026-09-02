@@ -102,7 +102,7 @@ else:
         )
     )
 
-    # 2. Cima de la barra: Reportes Recibidos (Texto blanco)
+    # 2. Cima de la barra: Reportes Recibidos (Texto negro)
     fig1.add_trace(
         go.Bar(
             x=df_dia["FECHA"],
@@ -230,12 +230,12 @@ else:
             name="Acumulados al Iniciar",
             marker_color="#d8e4fc",
             text=df_anual["REPORTES ACUMULADOS AL INICIAR"],
-            textposition="inside",
+            textposition="middle",
             textfont=dict(color="black", size=12),
         )
     )
 
-    # 2. Cima de la barra: Reportes Recibidos (Texto blanco)
+    # 2. Cima de la barra: Reportes Recibidos (Texto negro)
     fig2.add_trace(
         go.Bar(
             x=df_anual["MES"],
@@ -244,7 +244,7 @@ else:
             marker_color="#e9f056",
             text=df_anual["REPORTES RECIBIDOS"],
             textposition="inside",
-            textfont=dict(color="white", size=12),
+            textfont=dict(color="black", size=12),
         )
     )
 
@@ -271,7 +271,7 @@ else:
             name="Reportes Finalizados",
             mode="lines+markers+text",
             text=df_anual["REPORTES FINALIZADOS"],
-            textposition="top center",
+            textposition="bottom center",
             textfont=dict(color="#1d4ed8", size=12),
             marker=dict(size=6, color="#1d4ed8"),
             line=dict(color="#1d4ed8", width=2),
