@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="Dashboard de Reportes 2026", page_icon="📊", layout="wide"
 )
 
-st.title("📊 Control y Evolución de Reportes de Incidencias 2026")
+st.title("📊 Control y Seguimiento de Incidencias")
 
 
 # Función para cargar y procesar los datos
@@ -123,7 +123,7 @@ else:
             name="Total Reportes",
             mode="text+markers",
             text=df_dia["TOTAL REPORTES"],
-            textposition="top center",
+            textposition="bottom center",
             textfont=dict(color="#1F4E78", size=12),
             marker=dict(size=8, color="rgba(0,0,0,0)"),
             showlegend=False,
