@@ -49,8 +49,8 @@ else:
 
   # 3 Pestañas principales unificadas arriba
   tab1, tab2, tab3 = st.tabs([
-      "📅 Agosto Diario",
-      "📈 Acumulados Anual (Hasta Agosto)",
+      "📅 Seguimiento Diario",
+      "📈 Seguimiento Anual",
       "🔍 Búsqueda por Fecha",
   ])
 
@@ -209,7 +209,7 @@ else:
   # PESTAÑA 2: ANUAL HASTA AGOSTO
   # ==========================================
   with tab2:
-    st.subheader("Evolución Mensual")
+    st.subheader("Seguimiento Mensual")
 
     inicio_anio = pd.Timestamp("2026-01-01")
     fin_anio = pd.Timestamp("2026-09-01")
