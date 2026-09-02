@@ -63,7 +63,7 @@ else:
         st.subheader("📅 Comportamiento Diario por Mes")
 
         # Selectores para elegir el Año y el Mes que desees visualizar
-        col_s1, col_s2, _ = st.columns([1, 1, 2])
+        col_s1, col_s2, col_s3,col_s4,col_s5,col_s6, = st.columns([1, 1, 1, 1, 1, 1])
         with col_s1:
             # Puedes ajustar el rango de años según tus necesidades
             anio_seleccionado = st.selectbox(
@@ -95,7 +95,18 @@ else:
                 for k, v in meses_dict.items()
                 if v == mes_nombre_seleccionado
             ][0]
-
+        with col_s3:
+            st.subheader("Columna 3")
+            st.checkbox("Activar")
+        with col_s4:            
+            st.subheader("Columna 4")
+            st.checkbox("Activar")
+        with col_s5:
+            st.subheader("Columna 5")
+            st.checkbox("Activar")
+        with col_s6:
+            st.subheader("Columna 6")
+            st.checkbox("Activar")
         # Definir dinámicamente el inicio y fin del mes seleccionado
         inicio_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado, month=mes_seleccionado, day=1
