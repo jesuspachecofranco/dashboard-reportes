@@ -228,7 +228,7 @@ else:
             x=df_anual["MES"],
             y=df_anual["REPORTES ACUMULADOS AL INICIAR"],
             name="Acumulados al Iniciar",
-            marker_color="#5DADE2",
+            marker_color="#d8e4fc",
             text=df_anual["REPORTES ACUMULADOS AL INICIAR"],
             textposition="inside",
             textfont=dict(color="black", size=12),
@@ -241,7 +241,7 @@ else:
             x=df_anual["MES"],
             y=df_anual["REPORTES RECIBIDOS"],
             name="Reportes Recibidos",
-            marker_color="#1F4E78",
+            marker_color="#e9f056",
             text=df_anual["REPORTES RECIBIDOS"],
             textposition="inside",
             textfont=dict(color="white", size=12),
@@ -272,9 +272,9 @@ else:
             mode="lines+markers+text",
             text=df_anual["REPORTES FINALIZADOS"],
             textposition="top center",
-            textfont=dict(color="#27AE60", size=12),
-            marker=dict(size=6, color="#27AE60"),
-            line=dict(color="#27AE60", width=2),
+            textfont=dict(color="#1d4ed8", size=12),
+            marker=dict(size=6, color="#1d4ed8"),
+            line=dict(color="#1d4ed8", width=2),
         )
     )
 
