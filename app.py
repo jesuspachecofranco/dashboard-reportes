@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="Dashboard de Reportes 2026", page_icon="📊", layout="wide"
 )
 
-st.title("📊 Control y Seguimiento de Incidencias")
+st.title("📊 Control y Evolución de Reportes de Incidencias 2026")
 
 
 # Función para cargar y procesar los datos
@@ -89,39 +89,33 @@ else:
     # Gráfica Plotly Interactiva para Diario
     fig1 = go.Figure()
 
-    # 1. Base de la barra: Acumulados al Iniciar (Fondo claro -> Texto NEGRO para contraste)
+    # 1. Base de la barra: Acumulados al Iniciar (Texto negro)
     fig1.add_trace(
         go.Bar(
             x=df_dia["FECHA"],
             y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             name="Acumulados al Iniciar",
-            marker_color="#d8e4fc",
+            marker_color="#5DADE2",
             text=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             textposition="inside",
-            insidetextanchor="top center",
-            textfont=dict(
-                color="black", size=11, family="Arial", weight="bold"
-            ),
+            textfont=dict(color="black", size=11),
         )
     )
 
-    # 2. Cima de la barra: Reportes Recibidos (Fondo oscuro -> Texto BLANCO para contraste)
+    # 2. Cima de la barra: Reportes Recibidos (Texto blanco)
     fig1.add_trace(
         go.Bar(
             x=df_dia["FECHA"],
             y=df_dia["REPORTES RECIBIDOS"],
             name="Reportes Recibidos",
-            marker_color="#6391f4",
+            marker_color="#1F4E78",
             text=df_dia["REPORTES RECIBIDOS"],
             textposition="inside",
-            insidetextanchor="middle",
-            textfont=dict(
-                color="white", size=11, family="Arial", weight="bold"
-            ),
+            textfont=dict(color="white", size=11),
         )
     )
 
-    # 3. Línea invisible de soporte para mostrar el Total en la cúspide
+    # 3. Línea invisible de soporte para el Total en la cúspide
     fig1.add_trace(
         go.Scatter(
             x=df_dia["FECHA"],
@@ -130,9 +124,7 @@ else:
             mode="text+markers",
             text=df_dia["TOTAL REPORTES"],
             textposition="top center",
-            textfont=dict(
-                color="#1F4E78", size=12, family="Arial", weight="bold"
-            ),
+            textfont=dict(color="#1F4E78", size=12),
             marker=dict(size=8, color="rgba(0,0,0,0)"),
             showlegend=False,
         )
@@ -147,15 +139,12 @@ else:
             mode="lines+markers+text",
             text=df_dia["REPORTES FINALIZADOS"],
             textposition="top center",
-            textfont=dict(
-                color="#087333", size=11, family="Arial", weight="bold"
-            ),
+            textfont=dict(color="#27AE60", size=11),
             marker=dict(size=6, color="#27AE60"),
-            line=dict(color="#087333", width=2),
+            line=dict(color="#27AE60", width=2),
         )
     )
 
-    # Personalización de Títulos y Diseño General
     fig1.update_layout(
         title=dict(
             text="<b>Flujo Diario de Reportes - Agosto 2026</b>",
@@ -233,7 +222,7 @@ else:
     # Gráfica Plotly Interactiva para Anual
     fig2 = go.Figure()
 
-    # 1. Base de la barra: Acumulados al Iniciar (Fondo claro -> Texto NEGRO)
+    # 1. Base de la barra: Acumulados al Iniciar (Texto negro)
     fig2.add_trace(
         go.Bar(
             x=df_anual["MES"],
@@ -242,14 +231,11 @@ else:
             marker_color="#5DADE2",
             text=df_anual["REPORTES ACUMULADOS AL INICIAR"],
             textposition="inside",
-            insidetextanchor="middle",
-            textfont=dict(
-                color="black", size=12, family="Arial", weight="bold"
-            ),
+            textfont=dict(color="black", size=12),
         )
     )
 
-    # 2. Cima de la barra: Reportes Recibidos (Fondo oscuro -> Texto BLANCO)
+    # 2. Cima de la barra: Reportes Recibidos (Texto blanco)
     fig2.add_trace(
         go.Bar(
             x=df_anual["MES"],
@@ -258,10 +244,7 @@ else:
             marker_color="#1F4E78",
             text=df_anual["REPORTES RECIBIDOS"],
             textposition="inside",
-            insidetextanchor="middle",
-            textfont=dict(
-                color="white", size=12, family="Arial", weight="bold"
-            ),
+            textfont=dict(color="white", size=12),
         )
     )
 
@@ -274,9 +257,7 @@ else:
             mode="text+markers",
             text=df_anual["TOTAL REPORTES"],
             textposition="top center",
-            textfont=dict(
-                color="#1F4E78", size=12, family="Arial", weight="bold"
-            ),
+            textfont=dict(color="#1F4E78", size=12),
             marker=dict(size=8, color="rgba(0,0,0,0)"),
             showlegend=False,
         )
@@ -291,15 +272,12 @@ else:
             mode="lines+markers+text",
             text=df_anual["REPORTES FINALIZADOS"],
             textposition="top center",
-            textfont=dict(
-                color="#27AE60", size=12, family="Arial", weight="bold"
-            ),
+            textfont=dict(color="#27AE60", size=12),
             marker=dict(size=6, color="#27AE60"),
             line=dict(color="#27AE60", width=2),
         )
     )
 
-    # Personalización de Títulos y Diseño General
     fig2.update_layout(
         title=dict(
             text="<b>Resumen Acumulado Mensual (Enero - Agosto 2026)</b>",
