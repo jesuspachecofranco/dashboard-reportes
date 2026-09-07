@@ -122,6 +122,18 @@ def procesar_txts_seguro(archivos_subidos):
                 on_bad_lines="skip",
             )
 
+            # Validar si el archivo tiene suficientes columnas para procesar (si le faltan, se asume sin reportes nuevos)
+            total_columnas_archivo = df.shape[1]
+            max_indice_requerido = max(indices_a_conservar)
+
+            if total_columnas_archivo <= max_indice_requerido:
+                st.info(
+                    f"ℹ️ El archivo '{nombre_archivo}' no contiene reportes"
+                    " nuevos o carece de la estructura completa (zona sin"
+                    " incidencias). Se omitirá sin afectar el proceso."
+                )
+                continue
+
             df = df.iloc[:, indices_a_conservar]
             df.columns = nombres_finales
 
@@ -141,6 +153,10 @@ def procesar_txts_seguro(archivos_subidos):
             df = df[df["INCIDENCIA"] != ""]
             df = df[df["INCIDENCIA"].str.match(r"^\d+$", na=False)]
             df = df[df["RECEPCIÓN"] != ""]
+
+            # Si después de limpiar no quedan filas válidas, saltamos al siguiente
+            if df.empty:
+                continue
 
             dt_recepcion = pd.to_datetime(
                 df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
@@ -184,7 +200,6 @@ def procesar_txts_seguro(archivos_subidos):
                 f"⚠️ Error procesando el archivo '{nombre_archivo}': {e}"
             )
             return False
-
     if lista_dataframes:
         df_nuevo = pd.concat(lista_dataframes, ignore_index=True)
 
