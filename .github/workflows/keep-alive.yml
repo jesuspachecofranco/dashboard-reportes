@@ -2,9 +2,8 @@ name: Streamlit Keep Alive
 
 on:
   schedule:
-      # Se ejecuta cada 6 horas (puedes cambiarlo si lo deseas)
-      - cron: '0 */6 * * *'
-  workflow_dispatch: # Permite ejecutarlo manualmente desde GitHub
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 jobs:
   ping-streamlit:
@@ -13,5 +12,7 @@ jobs:
       - name: Visitar URL de la aplicación
         uses: fjogeleit/http-request-action@v1
         with:
-          url: 'https://incidencias-2026.streamlit.app/' # Reemplaza con tu enlace de Streamlit Cloud
+          url: 'TU_URL_DE_STREAMLIT_AQUÍ'
           method: 'GET'
+          timeout: 30000        # Aumenta el tiempo de espera a 30 segundos (30000 ms)
+          customHeaders: '{"User-Agent": "GitHub-Actions-Keep-Alive"}'
