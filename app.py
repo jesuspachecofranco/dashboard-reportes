@@ -301,20 +301,24 @@ archivos_cargados = st.sidebar.file_uploader(
     key=f"uploader_{st.session_state['uploader_key']}",
 )
 
-# Mostramos información si hay archivos cargados
-if archivos_cargados:
+# Determinamos si el botón debe estar habilitado o no basado en si hay archivos
+hay_archivos = bool(archivos_cargados and len(archivos_cargados) > 0)
+
+if hay_archivos:
     st.sidebar.info(
         f"📁 Se detectaron {len(archivos_cargados)} archivo(s) .txt listos."
     )
 
-# EL BOTÓN SIEMPRE ESTÁ VISIBLE EN LA BARRA LATERAL
-if st.sidebar.button(
+# EL BOTÓN SIEMPRE ESTÁ VISIBLE (Se deshabilita visualmente si no hay archivos cargados)
+ejecutar_clic = st.sidebar.button(
     "🚀 Ejecutar Depuración y Actualizar",
     key="btn_ejecutar_txt",
     use_container_width=True,
-):
-    # Validamos al hacer clic si realmente hay archivos cargados
-    if archivos_cargados:
+    disabled=not hay_archivos,  # Se activa solo si hay archivos
+)
+
+if ejecutar_clic:
+    if hay_archivos:
         with st.spinner(
             "Depurando, cotejando y generando respaldo seguro..."
         ):
@@ -328,10 +332,6 @@ if st.sidebar.button(
                 # Incrementamos la clave para limpiar el uploader y recargar la vista
                 st.session_state["uploader_key"] += 1
                 st.rerun()
-    else:
-        st.sidebar.warning(
-            "⚠️ Por favor, sube al menos un archivo .txt antes de ejecutar."
-        )
 
 # Botón permanente justo abajo para descargar el archivo de actualización si existe
 if os.path.exists("resultado_actualizacion.xlsx"):
@@ -343,49 +343,6 @@ if os.path.exists("resultado_actualizacion.xlsx"):
             file_name="resultado_actualizacion.xlsx",
             use_container_width=True,
         )
-# ==========================================
-# CARGA Y VISUALIZACIÓN DE DATOS (MANTIENE DISEÑO)
-# ==========================================
-@st.cache_data
-def cargar_datos():
-    archivo_entrada = "resultado_unificado.xlsx"
-    if not os.path.exists(archivo_entrada):
-        return None
-
-    df = pd.read_excel(archivo_entrada, dtype=str)
-    df["RECEPCION_DT"] = pd.to_datetime(
-        df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
-    )
-    df["FINALIZACION_DT"] = pd.to_datetime(
-        df["FINALIZACIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
-    )
-    return df
-
-
-df = cargar_datos()
-
-if df is None:
-    st.error(
-        "❌ No se encontró el archivo 'resultado_unificado.xlsx'. Sube tus"
-        " archivos .txt en el panel lateral para comenzar."
-    )
-else:
-    columnas_mostrar = [
-        "INCIDENCIA",
-        "RECEPCIÓN",
-        "FINALIZACIÓN",
-        "DIRECCIÓN",
-        "CLIENTE",
-        "MOTIVO",
-        "ESTADO",
-    ]
-
-    tab1, tab2, tab3 = st.tabs([
-        "📅 Seguimiento Diario",
-        "📈 Seguimiento Anual",
-        "🔍 Búsqueda por Fecha",
-    ])
-
     # ==========================================
     # PESTAÑA 1: SEGUIMIENTO DIARIO
     # ==========================================
