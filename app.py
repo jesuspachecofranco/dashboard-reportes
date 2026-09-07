@@ -601,11 +601,6 @@ else:
                 st.info("No hay registros para mostrar en esta sección.")
                 return
 
-            st.markdown(
-                "💡 *Selecciona las casillas (Columnas 'Seleccionar') de las"
-                " incidencias que deseas agregar a tu lote y haz clic en el botón inferior.*"
-            )
-
             df_editable = df_sub[columnas_mostrar].copy()
             df_editable.insert(0, "Seleccionar", False)
 
