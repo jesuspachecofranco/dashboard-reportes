@@ -1,8 +1,13 @@
 import calendar
 from datetime import datetime
+import io
 import os
 import pandas as pd
 import plotly.graph_objects as go
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.table import Table, TableStyleInfo
 import streamlit as st
 
 # Configuración de la página
@@ -13,14 +18,351 @@ st.set_page_config(
 st.title("📊 Control y Seguimiento de Incidencias")
 
 
-# Función para cargar y procesar los datos
+# ==========================================
+# FUNCIÓN DE DEPURACIÓN Y UNIFICACIÓN DE TXT (CON PROTECCIÓN)
+# ==========================================
+def procesar_txts_seguro(archivos_subidos):
+    """Procesa los TXT subidos, genera un archivo temporal de actualización
+
+    y coteja con el histórico creando respaldos sin sobrescribir imprudentemente.
+    """
+    mapeo_zonas = {
+        "01": "NORTE",
+        "02": "SUR",
+        "03": "ESTE",
+        "04": "OESTE",
+        "05": "CENTRO",
+        "06": "VÍA DUACA",
+        "07": "VÍA RÍO CLARO",
+        "08": "VÍA PAVIA",
+        "09": "VÍA BUENA VISTA",
+        "10": "VIA VIEJA CARORA",
+        "11": "VÍA QUIBOR",
+        "12": "VÍA AUTOPISTA CARORA",
+    }
+
+    meses_es = {
+        1: "ENERO",
+        2: "FEBRERO",
+        3: "MARZO",
+        4: "ABRIL",
+        5: "MAYO",
+        6: "JUNIO",
+        7: "JULIO",
+        8: "AGOSTO",
+        9: "SEPTIEMBRE",
+        10: "OCTUBRE",
+        11: "NOVIEMBRE",
+        12: "DICIEMBRE",
+    }
+
+    indices_a_conservار = [
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        28,
+        29,
+        30,
+        31,
+        32,
+        34,
+        35,
+        36,
+        37,
+        38,
+    ]
+    nombres_finales = [
+        "INCIDENCIA",
+        "DIRECCIÓN",
+        "MOTIVO",
+        "RECEPCIÓN",
+        "FINALIZACIÓN",
+        "TEC",
+        "TCR",
+        "TDV",
+        "TEJ",
+        "TAR",
+        "ESTADO",
+        "CLIENTE",
+        "TOTAL INCIDENCIAS",
+        "SUMATORIAS TEC",
+        "SUMATORIAS TCR",
+        "SUMATORIAS TDV",
+        "SUMATORIAS TEJ",
+        "SUMATORIAS TAR",
+        "PROMEDIO TEC",
+        "PROMEDIO TCR",
+        "PROMEDIO TDV",
+        "PROMEDIO TEJ",
+        "PROMEDIO TAR",
+    ]
+
+    lista_dataframes = []
+
+    for archivo in archivos_subidos:
+        nombre_archivo = archivo.name
+        try:
+            contenido = archivo.getvalue().decode("latin-1")
+            df = pd.read_csv(
+                io.StringIO(contenido),
+                sep="|",
+                header=None,
+                dtype=str,
+                engine="python",
+                on_bad_lines="skip",
+            )
+
+            df = df.iloc[:, indices_a_conservar]
+            df.columns = nombres_finales
+
+            codigo = nombre_archivo[:2]
+            nombre_zona = mapeo_zonas.get(codigo, nombre_archivo)
+            df.insert(0, "ZONA", nombre_zona)
+
+            for col in df.columns:
+                df[col] = df[col].astype(str).str.strip().str.upper()
+                df[col] = df[col].replace(
+                    ["NAN", "NONE", "NAT", "NAN.0"], "", regex=False
+                )
+                if col == "INCIDENCIA":
+                    df[col] = df[col].str.replace(r"\.0$", "", regex=True)
+
+            df = df.replace(r"\*", "", regex=True)
+            df = df[df["INCIDENCIA"] != ""]
+            df = df[df["INCIDENCIA"].str.match(r"^\d+$", na=False)]
+            df = df[df["RECEPCIÓN"] != ""]
+
+            dt_recepcion = pd.to_datetime(
+                df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
+            )
+            df["_DT_RECEPCION_TEMP"] = dt_recepcion
+            df = df.dropna(subset=["_DT_RECEPCION_TEMP"])
+            df = df.drop(columns=["_DT_RECEPCION_TEMP"])
+
+            dt_recepcion = pd.to_datetime(
+                df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
+            )
+            mes_recibido = dt_recepcion.dt.month.map(meses_es).fillna("")
+            anio_recibido = (
+                dt_recepcion.dt.year.fillna("")
+                .astype(str)
+                .str.replace(r"\.0$", "", regex=True)
+            )
+
+            dt_finalizacion = pd.to_datetime(
+                df["FINALIZACIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
+            )
+            mes_finalizado = dt_finalizacion.dt.month.map(meses_es).fillna("")
+            anio_finalizado = (
+                dt_finalizacion.dt.year.fillna("")
+                .astype(str)
+                .str.replace(r"\.0$", "", regex=True)
+            )
+
+            idx_rec = df.columns.get_loc("RECEPCIÓN")
+            df.insert(idx_rec, "MES RECIBIDO", mes_recibido)
+            df.insert(idx_rec, "AÑO RECIBIDO", anio_recibido)
+
+            idx_fin = df.columns.get_loc("FINALIZACIÓN")
+            df.insert(idx_fin, "MES FINALIZADO", mes_finalizado)
+            df.insert(idx_fin, "AÑO FINALIZADO", anio_finalizado)
+
+            df = df.drop_duplicates()
+            lista_dataframes.append(df)
+        except Exception as e:
+            st.error(
+                f"⚠️ Error procesando el archivo '{nombre_archivo}': {e}"
+            )
+            return False
+
+    if lista_dataframes:
+        df_nuevo = pd.concat(lista_dataframes, ignore_index=True)
+
+        # 1. Guardar primero la data procesada limpia en un archivo aislado de actualización
+        archivo_actualizacion = "resultado_actualizacion.xlsx"
+        df_nuevo.to_excel(archivo_actualizacion, index=False)
+
+        # 2. Cotejar y fusionar con el histórico para crear la nueva versión unificada segura
+        if os.path.exists("resultado_unificado.xlsx"):
+            try:
+                # Crear un respaldo automático con fecha/hora antes de tocar el original
+                timestamp_respaldo = datetime.now().strftime("%Y%m%d_%H%M%S")
+                archivo_respaldo = (
+                    f"resultado_unificado_respaldo_{timestamp_respaldo}.xlsx"
+                )
+                df_existente_seguridad = pd.read_excel(
+                    "resultado_unificado.xlsx", dtype=str
+                )
+                df_existente_seguridad.to_excel(archivo_respaldo, index=False)
+
+                # Fusionar con el histórico sin perder datos anteriores
+                df_final = pd.concat(
+                    [df_existente_seguridad, df_nuevo], ignore_index=True
+                )
+                df_final = df_final.drop_duplicates(
+                    subset=["INCIDENCIA"], keep="last"
+                )
+            except Exception:
+                df_final = df_nuevo
+        else:
+            df_final = df_nuevo
+
+        # Generar el Excel definitivo con formato OpenPyXL
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Consolidado Zonas"
+        ws.views.sheetView[0].showGridLines = True
+
+        headers = list(df_final.columns)
+        ws.append(headers)
+
+        for row in df_final.itertuples(index=False, name=None):
+            ws.append(list(row))
+
+        max_row = ws.max_row
+        max_col = len(headers)
+        end_cell = get_column_letter(max_col) + str(max_row)
+
+        tab = Table(displayName="TablaIncidencias", ref=f"A1:{end_cell}")
+        style = TableStyleInfo(
+            name="TableStyleLight1",
+            showFirstColumn=False,
+            showLastColumn=False,
+            showRowStripes=False,
+            showColumnStripes=False,
+        )
+        tab.tableStyleInfo = style
+        ws.add_table(tab)
+
+        data_font = Font(name="Calibri", size=10, color="333333")
+        thin_border = Border(
+            left=Side(style="thin", color="D5D8DC"),
+            right=Side(style="thin", color="D5D8DC"),
+            top=Side(style="thin", color="D5D8DC"),
+            bottom=Side(style="thin", color="D5D8DC"),
+        )
+
+        ws.row_dimensions[1].height = 25
+        for row_num in range(2, max_row + 1):
+            ws.row_dimensions[row_num].height = 20
+            for col_num in range(1, max_col + 1):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.font = data_font
+                cell.border = thin_border
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+
+        for col in ws.columns:
+            max_len = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                if cell.value:
+                    max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+        ws.freeze_panes = "A2"
+        wb.save("resultado_unificado.xlsx")
+        return True
+    return False
+
+
+# ==========================================
+# PANEL LATERAL: GESTIÓN Y ACTUALIZACIÓN SEGURA
+# ==========================================
+st.sidebar.header("⚙️ Configuración y Datos")
+
+tipo_actualizacion = st.sidebar.radio(
+    "Seleccione método de actualización:",
+    (
+        "Corte de Sistema (.txt múltiple)",
+        "Archivo Excel Directo (.xlsx)",
+        "Ver Archivo de Actualización",
+    ),
+)
+
+if tipo_actualizacion == "Corte de Sistema (.txt múltiple)":
+    archivos_txt_subidos = st.sidebar.file_uploader(
+        "Sube los archivos .txt de las zonas",
+        type=["txt"],
+        accept_multiple_files=True,
+    )
+    if st.sidebar.button("Ejecutar Depuración y Actualizar"):
+        if archivos_txt_subidos:
+            with st.spinner(
+                "Depurando, cotejando y generando respaldo seguro..."
+            ):
+                exito = procesar_txts_seguro(archivos_txt_subidos)
+                if exito:
+                    st.sidebar.success(
+                        "¡Actualización exitosa! Se guardó tu 'resultado_actualizacion.xlsx'"
+                        " y se actualizó el unificado creando un respaldo"
+                        " previo."
+                    )
+                    st.rerun()
+        else:
+            st.sidebar.warning(
+                "Por favor, selecciona al menos un archivo .txt."
+            )
+
+elif tipo_actualizacion == "Archivo Excel Directo (.xlsx)":
+    archivo_excel = st.sidebar.file_uploader(
+        "Actualizar base de datos general", type=["xlsx"]
+    )
+    if archivo_excel is not None:
+        # Creamos respaldo del original antes de reemplazarlo por seguridad
+        if os.path.exists("resultado_unificado.xlsx"):
+            timestamp_respaldo = datetime.now().strftime("%Y%m%d_%H%M%S")
+            df_resp = pd.read_excel("resultado_unificado.xlsx")
+            df_resp.to_excel(
+                f"resultado_unificado_respaldo_{timestamp_respaldo}.xlsx",
+                index=False,
+            )
+
+        with open("resultado_unificado.xlsx", "wb") as f:
+            f.write(archivo_excel.getbuffer())
+        st.sidebar.success(
+            "¡Base de datos actualizada! (Se guardó un respaldo del archivo"
+            " anterior)."
+        )
+        st.rerun()
+
+else:
+    if os.path.exists("resultado_actualizacion.xlsx"):
+        st.sidebar.info(
+            "El archivo 'resultado_actualizacion.xlsx' contiene el último"
+            " resultado aislado de tu depuración de TXT."
+        )
+        with open("resultado_actualizacion.xlsx", "rb") as f:
+            st.sidebar.download_button(
+                "📥 Descargar resultado_actualizacion.xlsx",
+                f,
+                file_name="resultado_actualizacion.xlsx",
+            )
+    else:
+        st.sidebar.warning(
+            "Aún no se ha generado ningún archivo de actualización por TXT."
+        )
+
+
+# ==========================================
+# CARGA Y VISUALIZACIÓN DE DATOS (MANTIENE DISEÑO)
+# ==========================================
 @st.cache_data
 def cargar_datos():
     archivo_entrada = "resultado_unificado.xlsx"
     if not os.path.exists(archivo_entrada):
         return None
 
-    df = pd.read_excel(archivo_entrada)
+    df = pd.read_excel(archivo_entrada, dtype=str)
     df["RECEPCION_DT"] = pd.to_datetime(
         df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
     )
@@ -34,11 +376,10 @@ df = cargar_datos()
 
 if df is None:
     st.error(
-        "❌ No se encontró el archivo 'resultado_unificado.xlsx' en el"
-        " directorio."
+        "❌ No se encontró el archivo 'resultado_unificado.xlsx'. Sube tus"
+        " archivos .txt en el panel lateral para comenzar."
     )
 else:
-    # Columnas requeridas para mostrar en las tablas detalladas
     columnas_mostrar = [
         "INCIDENCIA",
         "RECEPCIÓN",
@@ -49,7 +390,6 @@ else:
         "ESTADO",
     ]
 
-    # 3 Pestañas principales unificadas arriba
     tab1, tab2, tab3 = st.tabs([
         "📅 Seguimiento Diario",
         "📈 Seguimiento Anual",
@@ -57,12 +397,10 @@ else:
     ])
 
     # ==========================================
-    # PESTAÑA 1: SEGUIMIENTO DIARIO DINÁMICO
+    # PESTAÑA 1: SEGUIMIENTO DIARIO
     # ==========================================
     with tab1:
         st.subheader("📅 Comportamiento Diario por Mes")
-
-        # Selectores para elegir el Año y el Mes que desees visualizar
         col_s1, col_s2, _ = st.columns([1, 1, 2])
         with col_s1:
             anio_seleccionado = st.selectbox(
@@ -94,11 +432,9 @@ else:
                 if v == mes_nombre_seleccionado
             ][0]
 
-        # Definir dinámicamente el inicio y fin del mes seleccionado
         inicio_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado, month=mes_seleccionado, day=1
         )
-
         ultimo_dia = calendar.monthrange(anio_seleccionado, mes_seleccionado)[1]
         fin_mes_dinamico = pd.Timestamp(
             year=anio_seleccionado,
@@ -168,7 +504,6 @@ else:
                     & (df["FINALIZACION_DT"] < fin_dia)
                 ).sum()
             )
-
             efectividad_dia = (
                 (cant_finalizados / total_rep * 100) if total_rep > 0 else 0.0
             )
@@ -201,7 +536,6 @@ else:
         st.divider()
 
         fig1 = go.Figure()
-
         fig1.add_trace(
             go.Bar(
                 x=df_dia["FECHA"],
@@ -213,7 +547,6 @@ else:
                 textfont=dict(color="black", size=11),
             )
         )
-
         fig1.add_trace(
             go.Bar(
                 x=df_dia["FECHA"],
@@ -225,7 +558,6 @@ else:
                 textfont=dict(color="black", size=11),
             )
         )
-
         fig1.add_trace(
             go.Scatter(
                 x=df_dia["FECHA"],
@@ -239,7 +571,6 @@ else:
                 showlegend=False,
             )
         )
-
         fig1.add_trace(
             go.Scatter(
                 x=df_dia["FECHA"],
@@ -276,11 +607,10 @@ else:
             st.dataframe(df_dia, use_container_width=True)
 
     # ==========================================
-    # PESTAÑA 2: ANUAL HASTA AGOSTO
+    # PESTAÑA 2: SEGUIMIENTO ANUAL
     # ==========================================
     with tab2:
         st.subheader("📈 Seguimiento Mensual")
-
         inicio_anio = pd.Timestamp("2026-01-01")
         fin_anio = pd.Timestamp("2026-09-01")
 
@@ -376,7 +706,6 @@ else:
         df_anual = pd.DataFrame(datos_anual)
 
         fig2 = go.Figure()
-
         fig2.add_trace(
             go.Bar(
                 x=df_anual["MES"],
@@ -388,7 +717,6 @@ else:
                 textfont=dict(color="black", size=14),
             )
         )
-
         fig2.add_trace(
             go.Bar(
                 x=df_anual["MES"],
@@ -400,7 +728,6 @@ else:
                 textfont=dict(color="black", size=14),
             )
         )
-
         fig2.add_trace(
             go.Scatter(
                 x=df_anual["MES"],
@@ -414,7 +741,6 @@ else:
                 showlegend=False,
             )
         )
-
         fig2.add_trace(
             go.Scatter(
                 x=df_anual["MES"],
@@ -454,11 +780,6 @@ else:
     # ==========================================
     with tab3:
         st.subheader("🔍 Buscador de Incidencias por Fecha")
-        st.markdown(
-            "Selecciona **cualquier fecha** para consultar a detalle las"
-            " incidencias acumuladas pendientes, recibidas y finalizadas."
-        )
-
         col_f1, col_f2 = st.columns([1, 2])
         with col_f1:
             fecha_busqueda = st.date_input(
@@ -475,11 +796,9 @@ else:
                 | (df["FINALIZACION_DT"] >= inicio_sel)
             )
         ]
-
         df_recibidos_dia = df[
             (df["RECEPCION_DT"] >= inicio_sel) & (df["RECEPCION_DT"] < fin_sel)
         ]
-
         df_finalizados_dia = df[
             (df["FINALIZACION_DT"] >= inicio_sel)
             & (df["FINALIZACION_DT"] < fin_sel)
@@ -513,10 +832,6 @@ else:
             " registros)",
             expanded=True,
         ):
-            st.markdown(
-                "*Casos que venían de fechas anteriores y seguían activos al"
-                " iniciar este día.*"
-            )
             if not df_acumulados_dia.empty:
                 st.dataframe(
                     df_acumulados_dia[columnas_mostrar],
@@ -528,10 +843,6 @@ else:
         with st.expander(
             f"📥 2. Incidencias Recibidas ({len(df_recibidos_dia)} registros)"
         ):
-            st.markdown(
-                "*Casos que ingresaron exactamente durante el transcurso de este"
-                " día.*"
-            )
             if not df_recibidos_dia.empty:
                 st.dataframe(
                     df_recibidos_dia[columnas_mostrar],
@@ -546,10 +857,6 @@ else:
             f"✅ 3. Incidencias Finalizadas / Atendidas"
             f" ({len(df_finalizados_dia)} registros)"
         ):
-            st.markdown(
-                "*Casos cuya atención o finalización se registró durante este"
-                " día.*"
-            )
             if not df_finalizados_dia.empty:
                 st.dataframe(
                     df_finalizados_dia[columnas_mostrar],
