@@ -11,7 +11,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import streamlit as st
 
-# Configuración de la página
+# Configuración de la página con ancho completo
 st.set_page_config(
     page_title="Dashboard de Reportes 2026", page_icon="📊", layout="wide"
 )
@@ -274,132 +274,94 @@ def cargar_datos():
 df = cargar_datos()
 
 if df is None:
-    st.error(
-        "❌ No se encontró el archivo 'resultado_unificado.xlsx'. Sube tus"
-        " archivos .txt en el panel lateral para comenzar."
-    )
-else:
-    columnas_mostrar = [
-        "INCIDENCIA",
-        "RECEPCIÓN",
-        "FINALIZACIÓN",
-        "DIRECCIÓN",
-        "CLIENTE",
-        "MOTIVO",
-        "ESTADO",
-    ]
-
-    # ==========================================
-    # PANEL LATERAL: GESTIÓN Y ACTUALIZACIÓN (OPTIMIZADO)
-    # ==========================================
-    st.sidebar.markdown("### 📁 Carga de Zonas")
-    
-    if "uploader_key" not in st.session_state:
-        st.session_state["uploader_key"] = 0
-
-    archivos_cargados = st.sidebar.file_uploader(
-        "Selecciona archivos .txt",
-        type=["txt", "TXT"],
-        accept_multiple_files=True,
-        key=f"uploader_{st.session_state['uploader_key']}",
-        label_visibility="collapsed"
+    st.warning(
+        "⚠️ No se encontró el archivo 'resultado_unificado.xlsx'. Ve a la"
+        " pestaña **📁 Carga y Actualización** para subir tus archivos .txt"
+        " iniciales."
     )
 
-    if archivos_cargados:
-        st.sidebar.caption(f"✓ {len(archivos_cargados)} archivo(s) seleccionados")
+columnas_mostrar = [
+    "INCIDENCIA",
+    "RECEPCIÓN",
+    "FINALIZACIÓN",
+    "DIRECCIÓN",
+    "CLIENTE",
+    "MOTIVO",
+    "ESTADO",
+]
 
-    if st.sidebar.button(
-        "🚀 Depurar y Actualizar",
-        key="btn_ejecutar_txt",
+# ==========================================
+# VISTAS PRINCIPALES EN TABS (INCLUYENDO CARGA Y ANÁLISIS)
+# ==========================================
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📅 Seguimiento Diario",
+    "📈 Seguimiento Anual",
+    "🔍 Búsqueda Avanzada",
+    "🎯 Análisis",
+    "📁 Carga y Actualización",
+])
+
+
+def renderizar_tabla_con_seleccion(df_sub, nombre_pestana, tipo_origen_etiqueta=None):
+    if df is None:
+        st.info("Primero debes cargar datos en la pestaña 'Carga y Actualización'.")
+        return
+    if df_sub.empty:
+        st.info("No hay registros para mostrar en esta sección.")
+        return
+
+    df_editable = df_sub[columnas_mostrar].copy()
+    df_editable.insert(0, "Seleccionar", False)
+
+    df_editado = st.data_editor(
+        df_editable,
         use_container_width=True,
-        type="primary"
-    ):
-        if archivos_cargados:
-            with st.spinner("Procesando archivos..."):
-                exito = procesar_txts_seguro(archivos_cargados)
-                if exito:
-                    st.cache_data.clear()
-                    st.sidebar.success("¡Actualización exitosa!")
-                    st.session_state["uploader_key"] += 1
-                    st.rerun()
-        else:
-            st.sidebar.warning("⚠️ Sube al menos un archivo .txt.")
+        key=f"editor_{nombre_pestana}",
+        hide_index=True,
+    )
 
-    if os.path.exists("resultado_actualizacion.xlsx"):
-        st.sidebar.markdown("---")
-        with open("resultado_actualizacion.xlsx", "rb") as f:
-            st.sidebar.download_button(
-                "📥 Descargar Actualización",
-                f,
-                file_name="resultado_actualizacion.xlsx",
-                use_container_width=True,
-            )
+    col_btn1, col_btn2 = st.columns([2, 4])
+    with col_btn1:
+        if st.button(
+            f"➕ Agregar al Lote de Análisis",
+            key=f"btn_agregar_{nombre_pestana}",
+        ):
+            seleccionadas = df_editado[df_editado["Seleccionar"] == True]
+            if not seleccionadas.empty:
+                ids_seleccionados = seleccionadas["INCIDENCIA"].tolist()
+                df_lote_nuevo = df[
+                    df["INCIDENCIA"].isin(ids_seleccionados)
+                ].copy()
 
-    # ==========================================
-    # VISTAS PRINCIPALES EN TABS (INCLUYENDO ANÁLISIS)
-    # ==========================================
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📅 Seguimiento Diario",
-        "📈 Seguimiento Anual",
-        "🔍 Búsqueda Avanzada",
-        "🎯 Análisis",
-    ])
-
-    def renderizar_tabla_con_seleccion(df_sub, nombre_pestana, tipo_origen_etiqueta=None):
-        if df_sub.empty:
-            st.info("No hay registros para mostrar en esta sección.")
-            return
-
-        df_editable = df_sub[columnas_mostrar].copy()
-        df_editable.insert(0, "Seleccionar", False)
-
-        df_editado = st.data_editor(
-            df_editable,
-            use_container_width=True,
-            key=f"editor_{nombre_pestana}",
-            hide_index=True,
-        )
-
-        col_btn1, col_btn2 = st.columns([2, 4])
-        with col_btn1:
-            if st.button(
-                f"➕ Agregar al Lote de Análisis",
-                key=f"btn_agregar_{nombre_pestana}",
-            ):
-                seleccionadas = df_editado[
-                    df_editado["Seleccionar"] == True
-                ]
-                if not seleccionadas.empty:
-                    ids_seleccionados = seleccionadas["INCIDENCIA"].tolist()
-                    df_lote_nuevo = df[
-                        df["INCIDENCIA"].isin(ids_seleccionados)
-                    ].copy()
-
-                    if tipo_origen_etiqueta:
-                        df_lote_nuevo["ORIGEN_TIPO"] = tipo_origen_etiqueta
-                    else:
-                        df_lote_nuevo["ORIGEN_TIPO"] = "Recibidas en el Día"
-
-                    if "UNIDAD" not in df_lote_nuevo.columns:
-                        df_lote_nuevo["UNIDAD"] = ""
-                    if "GERENCIA" not in df_lote_nuevo.columns:
-                        df_lote_nuevo["GERENCIA"] = ""
-
-                    # Acumular con lo que ya estaba seleccionado
-                    if not st.session_state["lote_seleccionado"].empty:
-                        df_acumulado = pd.concat([st.session_state["lote_seleccionado"], df_lote_nuevo]).drop_duplicates(subset=["INCIDENCIA"])
-                        st.session_state["lote_seleccionado"] = df_acumulado
-                    else:
-                        st.session_state["lote_seleccionado"] = df_lote_nuevo
-
-                    st.success(
-                        f"¡Se agregaron {len(ids_seleccionados)} incidencias a la pestaña Análisis! (Total lote: {len(st.session_state['lote_seleccionado'])})"
-                    )
+                if tipo_origen_etiqueta:
+                    df_lote_nuevo["ORIGEN_TIPO"] = tipo_origen_etiqueta
                 else:
-                    st.warning("⚠️ No has seleccionado ninguna incidencia en la tabla.")
+                    df_lote_nuevo["ORIGEN_TIPO"] = "Recibidas en el Día"
 
-    with tab1:
-        st.subheader("📅 Comportamiento Diario por Mes")
+                if "UNIDAD" not in df_lote_nuevo.columns:
+                    df_lote_nuevo["UNIDAD"] = ""
+                if "GERENCIA" not in df_lote_nuevo.columns:
+                    df_lote_nuevo["GERENCIA"] = ""
+
+                if not st.session_state["lote_seleccionado"].empty:
+                    df_acumulado = pd.concat([
+                        st.session_state["lote_seleccionado"],
+                        df_lote_nuevo,
+                    ]).drop_duplicates(subset=["INCIDENCIA"])
+                    st.session_state["lote_seleccionado"] = df_acumulado
+                else:
+                    st.session_state["lote_seleccionado"] = df_lote_nuevo
+
+                st.success(
+                    f"¡Se agregaron {len(ids_seleccionados)} incidencias a la pestaña Análisis! (Total lote: {len(st.session_state['lote_seleccionado'])})"
+                )
+            else:
+                st.warning("⚠️ No has seleccionado ninguna incidencia en la tabla.")
+
+
+with tab1:
+    st.subheader("📅 Comportamiento Diario por Mes")
+    if df is not None:
         col_s1, col_s2, _ = st.columns([1, 1, 2])
         with col_s1:
             anio_seleccionado = st.selectbox(
@@ -626,10 +588,16 @@ else:
                 & (df["RECEPCION_DT"] < fin_mes_dinamico)
             ].copy()
             df_mes_filtro["ORIGEN_TIPO"] = "Recibidas en el Día"
-            renderizar_tabla_con_seleccion(df_mes_filtro, "diario_mes", "Recibidas en el Día")
+            renderizar_tabla_con_seleccion(
+                df_mes_filtro, "diario_mes", "Recibidas en el Día"
+            )
+    else:
+        st.info("No hay datos cargados todavía.")
 
-    with tab2:
-        st.subheader("📈 Seguimiento Mensual")
+
+with tab2:
+    st.subheader("📈 Seguimiento Mensual")
+    if df is not None:
         inicio_anio = pd.Timestamp("2026-01-01")
         fin_anio = pd.Timestamp("2026-09-01")
 
@@ -809,11 +777,18 @@ else:
                 & (df["RECEPCION_DT"] < fin_anio)
             ].copy()
             df_anual_filtro["ORIGEN_TIPO"] = "Recibidas en el Día"
-            renderizar_tabla_con_seleccion(df_anual_filtro, "anual", "Recibidas en el Día")
+            renderizar_tabla_con_seleccion(
+                df_anual_filtro, "anual", "Recibidas en el Día"
+            )
+    else:
+        st.info("No hay datos cargados todavía.")
 
-    with tab3:
-        st.subheader("🔍 Buscador Avanzado de Incidencias (Fecha, Número y Dirección)")
-        
+
+with tab3:
+    st.subheader(
+        "🔍 Buscador Avanzado de Incidencias (Fecha, Número y Dirección)"
+    )
+    if df is not None:
         col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
             fecha_busqueda = st.date_input(
@@ -821,18 +796,30 @@ else:
                 value=datetime(2026, 8, 12),
             )
         with col_f2:
-            filtro_num = st.text_input("Filtrar por Nº de Incidencia:", placeholder="Ej. 12345")
+            filtro_num = st.text_input(
+                "Filtrar por Nº de Incidencia:", placeholder="Ej. 12345"
+            )
         with col_f3:
-            filtro_dir = st.text_input("Filtrar por Dirección:", placeholder="Ej. Av. Principal")
+            filtro_dir = st.text_input(
+                "Filtrar por Dirección:", placeholder="Ej. Av. Principal"
+            )
 
         inicio_sel = pd.Timestamp(fecha_busqueda)
         fin_sel = inicio_sel + pd.Timedelta(days=1)
 
         df_base_filtrada = df.copy()
         if filtro_num:
-            df_base_filtrada = df_base_filtrada[df_base_filtrada["INCIDENCIA"].str.contains(filtro_num, case=False, na=False)]
+            df_base_filtrada = df_base_filtrada[
+                df_base_filtrada["INCIDENCIA"].str.contains(
+                    filtro_num, case=False, na=False
+                )
+            ]
         if filtro_dir:
-            df_base_filtrada = df_base_filtrada[df_base_filtrada["DIRECCIÓN"].str.contains(filtro_dir, case=False, na=False)]
+            df_base_filtrada = df_base_filtrada[
+                df_base_filtrada["DIRECCIÓN"].str.contains(
+                    filtro_dir, case=False, na=False
+                )
+            ]
 
         df_acumulados_dia = df_base_filtrada[
             (df_base_filtrada["RECEPCION_DT"] < inicio_sel)
@@ -853,7 +840,9 @@ else:
             (df_base_filtrada["FINALIZACION_DT"] >= inicio_sel)
             & (df_base_filtrada["FINALIZACION_DT"] < fin_sel)
         ].copy()
-        df_finalizados_dia["ORIGEN_TIPO"] = df_finalizados_dia["RECEPCION_DT"].apply(
+        df_finalizados_dia["ORIGEN_TIPO"] = df_finalizados_dia[
+            "RECEPCION_DT"
+        ].apply(
             lambda x: "Acumuladas" if x < inicio_sel else "Recibidas en el Día"
         )
 
@@ -905,21 +894,21 @@ else:
             renderizar_tabla_con_seleccion(
                 df_finalizados_dia, "busqueda_finalizados", None
             )
+    else:
+        st.info("No hay datos cargados todavía.")
 
-    with tab4:
-        # ==========================================
-        # PESTAÑA 4: ANÁLISIS
-        # ==========================================
-        col_ba1, _ = st.columns([1, 4])
-        with col_ba1:
-            if st.button("🗑️ Limpiar Lote Actual", use_container_width=True):
-                st.session_state["lote_seleccionado"] = pd.DataFrame()
-                st.success("¡Lote limpiado!")
-                st.rerun()
 
-        st.header("🎯 Panel de Análisis y Buscador de Lote")
-        
-        # Buscador rápido global acumulativo dentro de la pestaña Análisis
+with tab4:
+    col_ba1, _ = st.columns([1, 4])
+    with col_ba1:
+        if st.button("🗑️ Limpiar Lote Actual", use_container_width=True):
+            st.session_state["lote_seleccionado"] = pd.DataFrame()
+            st.success("¡Lote limpiado!")
+            st.rerun()
+
+    st.header("🎯 Panel de Análisis y Buscador de Lote")
+    
+    if df is not None:
         st.markdown("### 🔍 Buscador Rápido para Acumular al Lote")
         busqueda_global = st.text_input(
             "Buscar por número de incidencia, dirección o cliente:",
@@ -964,124 +953,175 @@ else:
         
         st.divider()
 
-        df_lote = st.session_state["lote_seleccionado"]
+    df_lote = st.session_state["lote_seleccionado"]
 
-        if df_lote.empty:
-            st.warning("No hay incidencias seleccionadas en el lote para analizar. Utiliza las pestañas anteriores o el buscador superior para agregar incidencias.")
-        else:
-            st.info(f"Mostrando análisis para un lote acumulado de **{len(df_lote)}** incidencias seleccionadas.")
+    if df_lote.empty:
+        st.warning("No hay incidencias seleccionadas en el lote para analizar. Utiliza las pestañas anteriores o el buscador superior para agregar incidencias.")
+    else:
+        st.info(f"Mostrando análisis para un lote acumulado de **{len(df_lote)}** incidencias seleccionadas.")
 
-            if "UNIDAD" not in df_lote.columns:
-                df_lote["UNIDAD"] = ""
-            if "GERENCIA" not in df_lote.columns:
-                df_lote["GERENCIA"] = ""
+        if "UNIDAD" not in df_lote.columns:
+            df_lote["UNIDAD"] = ""
+        if "GERENCIA" not in df_lote.columns:
+            df_lote["GERENCIA"] = ""
 
-            st.subheader("✍️ Asignación Manual de Unidad y Gerencia por Incidencia")
-            st.markdown("💡 *Haz doble clic en las columnas **UNIDAD** o **GERENCIA** de la tabla inferior para editar.*")
+        st.subheader("✍️ Asignación Manual de Unidad y Gerencia por Incidencia")
+        st.markdown("💡 *Haz doble clic en las columnas **UNIDAD** o **GERENCIA** de la tabla inferior para editar.*")
 
-            cols_edicion = ["INCIDENCIA", "MOTIVO", "ESTADO", "UNIDAD", "GERENCIA"]
-            for c in cols_edicion:
-                if c not in df_lote.columns:
-                    df_lote[c] = ""
+        cols_edicion = ["INCIDENCIA", "MOTIVO", "ESTADO", "UNIDAD", "GERENCIA"]
+        for c in cols_edicion:
+            if c not in df_lote.columns:
+                df_lote[c] = ""
 
-            df_para_editar = df_lote[cols_edicion].copy()
+        df_para_editar = df_lote[cols_edicion].copy()
 
-            df_editado_manual = st.data_editor(
-                df_para_editar,
+        df_editado_manual = st.data_editor(
+            df_para_editar,
+            use_container_width=True,
+            key="editor_manual_unidades",
+            hide_index=True,
+            disabled=["INCIDENCIA", "MOTIVO", "ESTADO"],
+        )
+
+        if st.button("💾 Guardar Asignación Manual y Actualizar Gráficos", key="btn_guardar_manual"):
+            for idx, row in df_editado_manual.iterrows():
+                inc_id = row["INCIDENCIA"]
+                mask = df_lote["INCIDENCIA"] == inc_id
+                df_lote.loc[mask, "UNIDAD"] = str(row["UNIDAD"]).strip().upper()
+                df_lote.loc[mask, "GERENCIA"] = str(row["GERENCIA"]).strip().upper()
+
+            st.session_state["lote_seleccionado"] = df_lote
+            st.success("¡Asignaciones guardadas y gráficos actualizados!")
+            st.rerun()
+
+        st.divider()
+
+        col_g1, col_g2 = st.columns(2)
+
+        with col_g1:
+            st.markdown("##### 📍 1. Gráfico de Zonas")
+            if "ZONA" in df_lote.columns and not df_lote["ZONA"].isna().all():
+                fig_zona = px.pie(df_lote, names="ZONA", title="Distribución por Zonas", hole=0.4)
+                st.plotly_chart(fig_zona, use_container_width=True)
+            else:
+                st.info("No hay datos de zona disponibles en este lote.")
+
+        with col_g2:
+            st.markdown("##### 📅 2. Gráfico por Mes de Recepción")
+            if "RECEPCION_DT" in df_lote.columns and not df_lote["RECEPCION_DT"].isna().all():
+                df_meses_lote = df_lote.groupby(df_lote["RECEPCION_DT"].dt.to_period("M")).size().reset_index(name="CANTIDAD")
+                df_meses_lote["MES_STR"] = df_meses_lote["RECEPCION_DT"].dt.strftime("%B %Y").str.upper()
+
+                fig_mes = px.bar(
+                    df_meses_lote,
+                    x="MES_STR",
+                    y="CANTIDAD",
+                    title="Incidencias Agrupadas por Mes de Recepción",
+                    labels={"MES_STR": "Mes", "CANTIDAD": "Cantidad"},
+                    color="CANTIDAD",
+                    color_continuous_scale="Blues",
+                )
+                st.plotly_chart(fig_mes, use_container_width=True)
+            else:
+                st.info("No hay fechas válidas para este gráfico.")
+
+        col_g3, col_g4 = st.columns(2)
+
+        with col_g3:
+            st.markdown("##### 🏷️ 3. Gráfico de Motivos")
+            if "MOTIVO" in df_lote.columns:
+                fig_motivo = px.bar(
+                    df_lote["MOTIVO"].value_counts().reset_index(),
+                    x="MOTIVO",
+                    y="count",
+                    title="Incidencias por Grupo de Origen / Motivo",
+                    labels={"MOTIVO": "Motivo", "count": "Cantidad"},
+                )
+                st.plotly_chart(fig_motivo, use_container_width=True)
+
+        with col_g4:
+            st.markdown("##### 🔄 4. Gráfico por Origen")
+            if "ORIGEN_TIPO" in df_lote.columns and not df_lote["ORIGEN_TIPO"].isna().all():
+                fig_origen = px.pie(
+                    df_lote,
+                    names="ORIGEN_TIPO",
+                    title="Clasificación por Origen",
+                    hole=0.4,
+                    color="ORIGEN_TIPO",
+                    color_discrete_map={"Acumuladas": "#94a3b8", "Recibidas en el Día": "#3b82f6"}
+                )
+                st.plotly_chart(fig_origen, use_container_width=True)
+            else:
+                st.info("No se cuenta con la clasificación de origen en este lote.")
+
+        col_g5, _ = st.columns(2)
+        with col_g5:
+            st.markdown("##### 🏢 5. Gráfico por Unidad Asignada")
+            df_unidad_valida = df_lote[(df_lote["UNIDAD"].notna()) & (df_lote["UNIDAD"] != "")]
+            if not df_unidad_valida.empty:
+                fig_unidad = px.bar(
+                    df_unidad_valida["UNIDAD"].value_counts().reset_index(),
+                    x="UNIDAD",
+                    y="count",
+                    title="Carga de Incidencias por Unidad (Manual)",
+                    labels={"UNIDAD": "Unidad", "count": "Cantidad"},
+                    color="UNIDAD",
+                )
+                st.plotly_chart(fig_unidad, use_container_width=True)
+            else:
+                st.info("Asigne texto en la columna 'UNIDAD' de la tabla superior para visualizar este gráfico.")
+
+        st.markdown("---")
+        st.subheader("📋 Detalle Completo del Lote Seleccionado")
+        st.dataframe(df_lote, use_container_width=True)
+
+
+with tab5:
+    # ==========================================
+    # PESTAÑA 5: CARGA Y ACTUALIZACIÓN (REEMPLAZO DEL SIDEBAR)
+    # ==========================================
+    st.subheader("📁 Carga de Zonas y Actualización de Base de Datos")
+    st.markdown("Sube aquí tus archivos `.txt` de incidencias para depurar, consolidar y unificar los datos en el sistema.")
+
+    if "uploader_key" not in st.session_state:
+        st.session_state["uploader_key"] = 0
+
+    archivos_cargados = st.file_uploader(
+        "Selecciona archivos .txt",
+        type=["txt", "TXT"],
+        accept_multiple_files=True,
+        key=f"uploader_{st.session_state['uploader_key']}",
+    )
+
+    if archivos_cargados:
+        st.info(f"✓ {len(archivos_cargados)} archivo(s) seleccionados.")
+
+    col_c1, col_c2 = st.columns([2, 2])
+    with col_c1:
+        if st.button(
+            "🚀 Depurar y Actualizar Base de Datos",
+            key="btn_ejecutar_txt_main",
+            use_container_width=True,
+            type="primary"
+        ):
+            if archivos_cargados:
+                with st.spinner("Procesando archivos y consolidando..."):
+                    exito = procesar_txts_seguro(archivos_cargados)
+                    if exito:
+                        st.cache_data.clear()
+                        st.success("¡Actualización exitosa! Los datos han sido unificados.")
+                        st.session_state["uploader_key"] += 1
+                        st.rerun()
+            else:
+                st.warning("⚠️ Sube al menos un archivo .txt antes de procesar.")
+
+    if os.path.exists("resultado_actualizacion.xlsx"):
+        st.markdown("---")
+        st.markdown("##### 📥 Descargar Resultados")
+        with open("resultado_actualizacion.xlsx", "rb") as f:
+            st.download_button(
+                "📥 Descargar Archivo de Actualización (Excel)",
+                f,
+                file_name="resultado_actualizacion.xlsx",
                 use_container_width=True,
-                key="editor_manual_unidades",
-                hide_index=True,
-                disabled=["INCIDENCIA", "MOTIVO", "ESTADO"],
             )
-
-            if st.button("💾 Guardar Asignación Manual y Actualizar Gráficos", key="btn_guardar_manual"):
-                for idx, row in df_editado_manual.iterrows():
-                    inc_id = row["INCIDENCIA"]
-                    mask = df_lote["INCIDENCIA"] == inc_id
-                    df_lote.loc[mask, "UNIDAD"] = str(row["UNIDAD"]).strip().upper()
-                    df_lote.loc[mask, "GERENCIA"] = str(row["GERENCIA"]).strip().upper()
-
-                st.session_state["lote_seleccionado"] = df_lote
-                st.success("¡Asignaciones guardadas y gráficos actualizados!")
-                st.rerun()
-
-            st.divider()
-
-            col_g1, col_g2 = st.columns(2)
-
-            with col_g1:
-                st.markdown("##### 📍 1. Gráfico de Zonas")
-                if "ZONA" in df_lote.columns and not df_lote["ZONA"].isna().all():
-                    fig_zona = px.pie(df_lote, names="ZONA", title="Distribución por Zonas", hole=0.4)
-                    st.plotly_chart(fig_zona, use_container_width=True)
-                else:
-                    st.info("No hay datos de zona disponibles en este lote.")
-
-            with col_g2:
-                st.markdown("##### 📅 2. Gráfico por Mes de Recepción")
-                if "RECEPCION_DT" in df_lote.columns and not df_lote["RECEPCION_DT"].isna().all():
-                    df_meses_lote = df_lote.groupby(df_lote["RECEPCION_DT"].dt.to_period("M")).size().reset_index(name="CANTIDAD")
-                    df_meses_lote["MES_STR"] = df_meses_lote["RECEPCION_DT"].dt.strftime("%B %Y").str.upper()
-
-                    fig_mes = px.bar(
-                        df_meses_lote,
-                        x="MES_STR",
-                        y="CANTIDAD",
-                        title="Incidencias Agrupadas por Mes de Recepción",
-                        labels={"MES_STR": "Mes", "CANTIDAD": "Cantidad"},
-                        color="CANTIDAD",
-                        color_continuous_scale="Blues",
-                    )
-                    st.plotly_chart(fig_mes, use_container_width=True)
-                else:
-                    st.info("No hay fechas válidas para este gráfico.")
-
-            col_g3, col_g4 = st.columns(2)
-
-            with col_g3:
-                st.markdown("##### 🏷️ 3. Gráfico de Motivos")
-                if "MOTIVO" in df_lote.columns:
-                    fig_motivo = px.bar(
-                        df_lote["MOTIVO"].value_counts().reset_index(),
-                        x="MOTIVO",
-                        y="count",
-                        title="Incidencias por Grupo de Origen / Motivo",
-                        labels={"MOTIVO": "Motivo", "count": "Cantidad"},
-                    )
-                    st.plotly_chart(fig_motivo, use_container_width=True)
-
-            with col_g4:
-                st.markdown("##### 🔄 4. Gráfico por Origen")
-                if "ORIGEN_TIPO" in df_lote.columns and not df_lote["ORIGEN_TIPO"].isna().all():
-                    fig_origen = px.pie(
-                        df_lote,
-                        names="ORIGEN_TIPO",
-                        title="Clasificación por Origen",
-                        hole=0.4,
-                        color="ORIGEN_TIPO",
-                        color_discrete_map={"Acumuladas": "#94a3b8", "Recibidas en el Día": "#3b82f6"}
-                    )
-                    st.plotly_chart(fig_origen, use_container_width=True)
-                else:
-                    st.info("No se cuenta con la clasificación de origen en este lote.")
-
-            col_g5, _ = st.columns(2)
-            with col_g5:
-                st.markdown("##### 🏢 5. Gráfico por Unidad Asignada")
-                df_unidad_valida = df_lote[(df_lote["UNIDAD"].notna()) & (df_lote["UNIDAD"] != "")]
-                if not df_unidad_valida.empty:
-                    fig_unidad = px.bar(
-                        df_unidad_valida["UNIDAD"].value_counts().reset_index(),
-                        x="UNIDAD",
-                        y="count",
-                        title="Carga de Incidencias por Unidad (Manual)",
-                        labels={"UNIDAD": "Unidad", "count": "Cantidad"},
-                        color="UNIDAD",
-                    )
-                    st.plotly_chart(fig_unidad, use_container_width=True)
-                else:
-                    st.info("Asigne texto en la columna 'UNIDAD' de la tabla superior para visualizar este gráfico.")
-
-            st.markdown("---")
-            st.subheader("📋 Detalle Completo del Lote Seleccionado")
-            st.dataframe(df_lote, use_container_width=True)
