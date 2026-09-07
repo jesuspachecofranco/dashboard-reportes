@@ -285,86 +285,75 @@ def procesar_txts_seguro(archivos_subidos):
     return False
 
 # ==========================================
-# PANEL LATERAL: GESTIÓN Y ACTUALIZACIÓN SEGURA
+# PANEL LATERAL: GESTIÓN Y ACTUALIZACIÓN INTELIGENTE
 # ==========================================
 st.sidebar.header("⚙️ Configuración y Datos")
 
-tipo_actualizacion = st.sidebar.radio(
-    "Seleccione método de actualización:",
-    (
-        "Corte de Sistema (.txt múltiple)",
-        "Archivo Excel Directo (.xlsx)",
-        "Ver Archivo de Actualización",
-    ),
+# Inicializamos la clave del uploader en session_state para poder limpiarlo después de procesar
+if "uploader_key" not in st.session_state:
+    st.session_state["uploader_key"] = 0
+
+archivos_cargados = st.sidebar.file_uploader(
+    "Sube archivos (.txt múltiples o .xlsx)",
+    type=["txt", "xlsx"],
+    accept_multiple_files=True,
+    key=f"uploader_{st.session_state['uploader_key']}",
 )
 
-if tipo_actualizacion == "Corte de Sistema (.txt múltiple)":
-    archivos_txt_subidos = st.sidebar.file_uploader(
-        "Sube los archivos .txt de las zonas",
-        type=["txt"],
-        accept_multiple_files=True,
-    )
-    if st.sidebar.button("Ejecutar Depuración y Actualizar"):
-        if archivos_txt_subidos:
+if archivos_cargados:
+    # Separar automáticamente según la extensión
+    txts = [f for f in archivos_cargados if f.name.endswith(".txt")]
+    xlsx_Files = [f for f in archivos_cargados if f.name.endswith(".xlsx")]
+
+    if txts:
+        if st.sidebar.button("Ejecutar Depuración y Actualizar (.txt)"):
             with st.spinner(
                 "Depurando, cotejando y generando respaldo seguro..."
             ):
-                exito = procesar_txts_seguro(archivos_txt_subidos)
+                exito = procesar_txts_seguro(txts)
                 if exito:
-                    # Limpiamos el caché para forzar a Streamlit a leer el nuevo archivo unificado
                     st.cache_data.clear()
                     st.sidebar.success(
-                        "¡Actualización exitosa! Se guardó tu 'resultado_actualizacion.xlsx'"
-                        " y se actualizó el unificado creando un respaldo"
-                        " previo."
+                        "¡Actualización exitosa! Se guardó"
+                        " 'resultado_actualizacion.xlsx' y se actualizó el"
+                        " unificado."
                     )
+                    # Limpiamos el uploader incrementando la clave y recargando
+                    st.session_state["uploader_key"] += 1
                     st.rerun()
-        else:
-            st.sidebar.warning(
-                "Por favor, selecciona al menos un archivo .txt."
+
+    elif xlsx_Files:
+        archivo_excel = xlsx_Files[0]
+        if st.sidebar.button("Actualizar Base de Datos con Excel"):
+            if os.path.exists("resultado_unificado.xlsx"):
+                timestamp_respaldo = datetime.now().strftime("%Y%m%d_%H%M%S")
+                df_resp = pd.read_excel("resultado_unificado.xlsx")
+                df_resp.to_excel(
+                    f"resultado_unificado_respaldo_{timestamp_respaldo}.xlsx",
+                    index=False,
+                )
+
+            with open("resultado_unificado.xlsx", "wb") as f:
+                f.write(archivo_excel.getbuffer())
+
+            st.cache_data.clear()
+            st.sidebar.success(
+                "¡Base de datos actualizada con Excel! (Se guardó un respaldo"
+                " previo)."
             )
+            st.session_state["uploader_key"] += 1
+            st.rerun()
 
-elif tipo_actualizacion == "Archivo Excel Directo (.xlsx)":
-    archivo_excel = st.sidebar.file_uploader(
-        "Actualizar base de datos general", type=["xlsx"]
-    )
-    if archivo_excel is not None:
-        if os.path.exists("resultado_unificado.xlsx"):
-            timestamp_respaldo = datetime.now().strftime("%Y%m%d_%H%M%S")
-            df_resp = pd.read_excel("resultado_unificado.xlsx")
-            df_resp.to_excel(
-                f"resultado_unificado_respaldo_{timestamp_respaldo}.xlsx",
-                index=False,
-            )
-
-        with open("resultado_unificado.xlsx", "wb") as f:
-            f.write(archivo_excel.getbuffer())
-
-        # Limpiamos caché y recargamos para refrescar métricas
-        st.cache_data.clear()
-        st.sidebar.success(
-            "¡Base de datos actualizada! (Se guardó un respaldo del archivo"
-            " anterior)."
+# Botón permanente justo abajo para descargar el archivo de actualización si existe
+if os.path.exists("resultado_actualizacion.xlsx"):
+    st.sidebar.markdown("---")
+    with open("resultado_actualizacion.xlsx", "rb") as f:
+        st.sidebar.download_button(
+            "📥 Descargar Archivo de Actualización",
+            f,
+            file_name="resultado_actualizacion.xlsx",
+            use_container_width=True,
         )
-        st.rerun()
-
-else:
-    if os.path.exists("resultado_actualizacion.xlsx"):
-        st.sidebar.info(
-            "El archivo 'resultado_actualizacion.xlsx' contiene el último"
-            " resultado aislado de tu depuración de TXT."
-        )
-        with open("resultado_actualizacion.xlsx", "rb") as f:
-            st.sidebar.download_button(
-                "📥 Descargar resultado_actualizacion.xlsx",
-                f,
-                file_name="resultado_actualizacion.xlsx",
-            )
-    else:
-        st.sidebar.warning(
-            "Aún no se ha generado ningún archivo de actualización por TXT."
-        )
-
 
 # ==========================================
 # CARGA Y VISUALIZACIÓN DE DATOS (MANTIENE DISEÑO)
