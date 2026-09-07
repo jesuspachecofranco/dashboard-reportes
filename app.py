@@ -391,31 +391,24 @@ else:
                 "UNIDAD",
                 "GERENCIA",
             ]
-            # Asegurarnos de que existan todas
             for c in cols_edicion:
                 if c not in df_lote.columns:
                     df_lote[c] = ""
 
             df_para_editar = df_lote[cols_edicion].copy()
 
-            # Editor interactivo por fila
             df_editado_manual = st.data_editor(
                 df_para_editar,
                 use_container_width=True,
                 key="editor_manual_unidades",
                 hide_index=True,
-                disabled=[
-                    "INCIDENCIA",
-                    "MOTIVO",
-                    "ESTADO",
-                ],  # Solo permitimos editar Unidad y Gerencia
+                disabled=["INCIDENCIA", "MOTIVO", "ESTADO"],
             )
 
             if st.button(
                 "💾 Guardar Asignación Manual y Actualizar Gráficos",
                 key="btn_guardar_manual",
             ):
-                # Actualizamos el dataframe principal del lote con los valores escritos por el usuario
                 for idx, row in df_editado_manual.iterrows():
                     inc_id = row["INCIDENCIA"]
                     mask = df_lote["INCIDENCIA"] == inc_id
@@ -449,34 +442,45 @@ else:
                     st.info("No hay datos de zona disponibles en este lote.")
 
             with col_g2:
-                st.markdown("##### 📅 2. Gráfico de Fechas de Recepción")
+                st.markdown("##### 📅 2. Gráfico por Mes de Recepción")
                 if (
                     "RECEPCION_DT" in df_lote.columns
                     and not df_lote["RECEPCION_DT"].isna().all()
                 ):
-                    df_fechas = (
+                    # Agrupar por mes y año para el gráfico de barras por mes
+                    df_lote["MES_ANIO_STR"] = df_lote[
+                        "RECEPCION_DT"
+                    ].dt.strftime("%B %Y")
+                    df_meses_lote = (
                         df_lote.groupby(
-                            df_lote["RECEPCION_DT"].dt.date
-                        ).size()
+                            df_lote["RECEPCION_DT"].dt.to_period("M")
+                        )
+                        .size()
                         .reset_index(name="CANTIDAD")
                     )
-                    fig_fecha = px.bar(
-                        df_fechas,
-                        x="RECEPCION_DT",
-                        y="CANTIDAD",
-                        title=(
-                            "Fechas de Recepción (Acumulados vs Del Día)"
-                        ),
-                        labels={"RECEPCION_DT": "Fecha"},
+                    df_meses_lote["MES_STR"] = (
+                        df_meses_lote["RECEPCION_DT"]
+                        .dt.strftime("%B %Y")
+                        .str.upper()
                     )
-                    st.plotly_chart(fig_fecha, use_container_width=True)
+
+                    fig_mes = px.bar(
+                        df_meses_lote,
+                        x="MES_STR",
+                        y="CANTIDAD",
+                        title="Incidencias Agrupadas por Mes de Recepción",
+                        labels={"MES_STR": "Mes", "CANTIDAD": "Cantidad"},
+                        color="CANTIDAD",
+                        color_continuous_scale="Blues",
+                    )
+                    st.plotly_chart(fig_mes, use_container_width=True)
                 else:
                     st.info("No hay fechas válidas para este gráfico.")
 
             col_g3, col_g4 = st.columns(2)
 
             with col_g3:
-                st.markdown("##### 🏷️ 3. Gráfico de Grupos de Origen / Motivos")
+                st.markdown("##### 🏷️ 3. Gráfico de Motivos")
                 if "MOTIVO" in df_lote.columns:
                     fig_motivo = px.bar(
                         df_lote["MOTIVO"].value_counts().reset_index(),
@@ -488,8 +492,23 @@ else:
                     st.plotly_chart(fig_motivo, use_container_width=True)
 
             with col_g4:
-                st.markdown("##### 🏢 4. Gráfico por Unidad Asignada")
-                # Filtramos vacíos para que el gráfico sea limpio
+                st.markdown("##### 🔄 4. Gráfico por Origen (Acumuladas vs Día)")
+                if "ORIGEN_TIPO" in df_lote.columns and not df_lote["ORIGEN_TIPO"].isna().all():
+                    fig_origen = px.pie(
+                        df_lote,
+                        names="ORIGEN_TIPO",
+                        title="Clasificación por Origen (Acumuladas vs Recibidas en el Día)",
+                        hole=0.4,
+                        color="ORIGEN_TIPO",
+                        color_discrete_map={"Acumuladas": "#94a3b8", "Recibidas en el Día": "#3b82f6"}
+                    )
+                    st.plotly_chart(fig_origen, use_container_width=True)
+                else:
+                    st.info("No se cuenta con la clasificación de origen en este lote.")
+
+            col_g5, _ = st.columns(2)
+            with col_g5:
+                st.markdown("##### 🏢 5. Gráfico por Unidad Asignada")
                 df_unidad_valida = df_lote[
                     (df_lote["UNIDAD"].notna()) & (df_lote["UNIDAD"] != "")
                 ]
@@ -523,7 +542,7 @@ else:
             "🔍 Búsqueda por Fecha",
         ])
 
-        def renderizar_tabla_con_seleccion(df_sub, nombre_pestana):
+        def renderizar_tabla_con_seleccion(df_sub, nombre_pestana, tipo_origen_etiqueta=None):
             if df_sub.empty:
                 st.info("No hay registros para mostrar en esta sección.")
                 return
@@ -558,6 +577,12 @@ else:
                         df_lote_real = df[
                             df["INCIDENCIA"].isin(ids_seleccionados)
                         ].copy()
+
+                        # Etiquetar el origen para el gráfico de origen
+                        if tipo_origen_etiqueta:
+                            df_lote_real["ORIGEN_TIPO"] = tipo_origen_etiqueta
+                        else:
+                            df_lote_real["ORIGEN_TIPO"] = "Recibidas en el Día"
 
                         # Inicializar columnas de texto si no están
                         if "UNIDAD" not in df_lote_real.columns:
@@ -800,8 +825,9 @@ else:
                 df_mes_filtro = df[
                     (df["RECEPCION_DT"] >= inicio_mes_dinamico)
                     & (df["RECEPCION_DT"] < fin_mes_dinamico)
-                ]
-                renderizar_tabla_con_seleccion(df_mes_filtro, "diario_mes")
+                ].copy()
+                df_mes_filtro["ORIGEN_TIPO"] = "Recibidas en el Día"
+                renderizar_tabla_con_seleccion(df_mes_filtro, "diario_mes", "Recibidas en el Día")
 
         with tab2:
             st.subheader("📈 Seguimiento Mensual")
@@ -982,8 +1008,9 @@ else:
                 df_anual_filtro = df[
                     (df["RECEPCION_DT"] >= inicio_anio)
                     & (df["RECEPCION_DT"] < fin_anio)
-                ]
-                renderizar_tabla_con_seleccion(df_anual_filtro, "anual")
+                ].copy()
+                df_anual_filtro["ORIGEN_TIPO"] = "Recibidas en el Día"
+                renderizar_tabla_con_seleccion(df_anual_filtro, "anual", "Recibidas en el Día")
 
         with tab3:
             st.subheader("🔍 Buscador de Incidencias por Fecha")
@@ -1003,15 +1030,23 @@ else:
                     df["FINALIZACION_DT"].isna()
                     | (df["FINALIZACION_DT"] >= inicio_sel)
                 )
-            ]
+            ].copy()
+            df_acumulados_dia["ORIGEN_TIPO"] = "Acumuladas"
+
             df_recibidos_dia = df[
                 (df["RECEPCION_DT"] >= inicio_sel)
                 & (df["RECEPCION_DT"] < fin_sel)
-            ]
+            ].copy()
+            df_recibidos_dia["ORIGEN_TIPO"] = "Recibidas en el Día"
+
             df_finalizados_dia = df[
                 (df["FINALIZACION_DT"] >= inicio_sel)
                 & (df["FINALIZACION_DT"] < fin_sel)
-            ]
+            ].copy()
+            # Asignamos su origen histórico de recepción real para el gráfico si son finalizadas
+            df_finalizados_dia["ORIGEN_TIPO"] = df_finalizados_dia["RECEPCION_DT"].apply(
+                lambda x: "Acumuladas" if x < inicio_sel else "Recibidas en el Día"
+            )
 
             st.markdown("---")
             st.markdown(
@@ -1043,7 +1078,7 @@ else:
                 expanded=True,
             ):
                 renderizar_tabla_con_seleccion(
-                    df_acumulados_dia, "busqueda_acumulados"
+                    df_acumulados_dia, "busqueda_acumulados", "Acumuladas"
                 )
 
             with st.expander(
@@ -1051,7 +1086,7 @@ else:
                 " registros)"
             ):
                 renderizar_tabla_con_seleccion(
-                    df_recibidos_dia, "busqueda_recibidos"
+                    df_recibidos_dia, "busqueda_recibidos", "Recibidas en el Día"
                 )
 
             with st.expander(
@@ -1059,5 +1094,5 @@ else:
                 f" ({len(df_finalizados_dia)} registros)"
             ):
                 renderizar_tabla_con_seleccion(
-                    df_finalizados_dia, "busqueda_finalizados"
+                    df_finalizados_dia, "busqueda_finalizados", None
                 )
