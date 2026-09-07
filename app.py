@@ -255,60 +255,6 @@ def procesar_txts_seguro(archivos_subidos):
 
 
 # ==========================================
-# PANEL LATERAL: GESTIÓN Y ACTUALIZACIÓN
-# ==========================================
-st.sidebar.header("⚙️ Configuración y Datos")
-
-if "uploader_key" not in st.session_state:
-    st.session_state["uploader_key"] = 0
-
-archivos_cargados = st.sidebar.file_uploader(
-    "Sube los archivos .txt de las zonas",
-    type=["txt", "TXT"],
-    accept_multiple_files=True,
-    key=f"uploader_{st.session_state['uploader_key']}",
-)
-
-if archivos_cargados:
-    st.sidebar.info(
-        f"📁 Se detectaron {len(archivos_cargados)} archivo(s) .txt listos."
-    )
-
-if st.sidebar.button(
-    "🚀 Ejecutar Depuración y Actualizar",
-    key="btn_ejecutar_txt",
-    use_container_width=True,
-):
-    if archivos_cargados:
-        with st.spinner(
-            "Depurando, cotejando y generando respaldo seguro..."
-        ):
-            exito = procesar_txts_seguro(archivos_cargados)
-            if exito:
-                st.cache_data.clear()
-                st.sidebar.success(
-                    "¡Actualización exitosa! Se guardó"
-                    " 'resultado_actualizacion.xlsx'."
-                )
-                st.session_state["uploader_key"] += 1
-                st.rerun()
-    else:
-        st.sidebar.warning(
-            "⚠️ Por favor, sube al menos un archivo .txt antes de ejecutar."
-        )
-
-if os.path.exists("resultado_actualizacion.xlsx"):
-    st.sidebar.markdown("---")
-    with open("resultado_actualizacion.xlsx", "rb") as f:
-        st.sidebar.download_button(
-            "📥 Descargar Archivo de Actualización",
-            f,
-            file_name="resultado_actualizacion.xlsx",
-            use_container_width=True,
-        )
-
-
-# ==========================================
 # CARGA Y VISUALIZACIÓN DE DATOS
 # ==========================================
 @st.cache_data
@@ -345,26 +291,139 @@ else:
         "ESTADO",
     ]
 
-    if st.session_state["vista_analisis"]:
-        if st.sidebar.button("🔙 Volver al Dashboard General"):
-            st.session_state["vista_analisis"] = False
-            st.rerun()
+    # ==========================================
+    # PANEL LATERAL: GESTIÓN Y ACTUALIZACIÓN
+    # ==========================================
+    st.sidebar.header("⚙️ Configuración y Datos")
+
+    if "uploader_key" not in st.session_state:
+        st.session_state["uploader_key"] = 0
+
+    archivos_cargados = st.sidebar.file_uploader(
+        "Sube los archivos .txt de las zonas",
+        type=["txt", "TXT"],
+        accept_multiple_files=True,
+        key=f"uploader_{st.session_state['uploader_key']}",
+    )
+
+    if archivos_cargados:
+        st.sidebar.info(
+            f"📁 Se detectaron {len(archivos_cargados)} archivo(s) .txt listos."
+        )
+
+    if st.sidebar.button(
+        "🚀 Ejecutar Depuración y Actualizar",
+        key="btn_ejecutar_txt",
+        use_container_width=True,
+    ):
+        if archivos_cargados:
+            with st.spinner(
+                "Depurando, cotejando y generando respaldo seguro..."
+            ):
+                exito = procesar_txts_seguro(archivos_cargados)
+                if exito:
+                    st.cache_data.clear()
+                    st.sidebar.success(
+                        "¡Actualización exitosa! Se guardó"
+                        " 'resultado_actualizacion.xlsx'."
+                    )
+                    st.session_state["uploader_key"] += 1
+                    st.rerun()
+        else:
+            st.sidebar.warning(
+                "⚠️ Por favor, sube al menos un archivo .txt antes de ejecutar."
+            )
+
+    if os.path.exists("resultado_actualizacion.xlsx"):
+        st.sidebar.markdown("---")
+        with open("resultado_actualizacion.xlsx", "rb") as f:
+            st.sidebar.download_button(
+                "📥 Descargar Archivo de Actualización",
+                f,
+                file_name="resultado_actualizacion.xlsx",
+                use_container_width=True,
+            )
+
+    st.sidebar.markdown("---")
+    st.sidebar.header("🎯 Navegación y Análisis")
+    num_sel_actual = len(st.session_state["lote_seleccionado"])
+    st.sidebar.metric("Incidencias en Lote", f"{num_sel_actual}")
+    
+    if st.sidebar.button("🚀 Ir al Panel de Análisis", use_container_width=True, type="primary"):
+        st.session_state["vista_analisis"] = True
+        st.rerun()
 
     # ==========================================
     # VISTA 2: PANEL DE ANÁLISIS DE LOTE SELECCIONADO
     # ==========================================
     if st.session_state["vista_analisis"]:
-        st.header("🎯 Panel de Análisis de Lote de Incidencias")
+        # Botones superiores de control en Análisis
+        col_ba1, col_ba2, col_ba3 = st.columns([1.5, 1.5, 4])
+        with col_ba1:
+            if st.button("🔙 Volver al Inicio", use_container_width=True):
+                st.session_state["vista_analisis"] = False
+                st.rerun()
+        with col_ba2:
+            if st.button("🗑️ Limpiar Selección", use_container_width=True):
+                st.session_state["lote_seleccionado"] = pd.DataFrame()
+                st.success("¡Selección limpiada!")
+                st.rerun()
+
+        st.header("🎯 Panel de Análisis y Buscador de Lote de Incidencias")
+        
+        # 🌟 BUSCADOR RÁPIDO INTEGRADO EN EL PANEL DE ANÁLISIS (ACUMULATIVO)
+        st.markdown("### 🔍 Buscador Rápido para Acumular Incidencias")
+        busqueda_global = st.text_input(
+            "Buscar por número de incidencia, dirección o cliente para agregar al lote:",
+            placeholder="Escribe para buscar..."
+        )
+
+        if busqueda_global:
+            mask_global = (
+                df["INCIDENCIA"].str.contains(busqueda_global, case=False, na=False) |
+                df["DIRECCIÓN"].str.contains(busqueda_global, case=False, na=False) |
+                df["CLIENTE"].str.contains(busqueda_global, case=False, na=False)
+            )
+            df_resultado_global = df[mask_global].copy()
+            st.markdown(f"**Resultados de búsqueda global ({len(df_resultado_global)} encontrados):**")
+            
+            if not df_resultado_global.empty:
+                df_glob_editable = df_resultado_global[columnas_mostrar].copy()
+                df_glob_editable.insert(0, "Seleccionar", False)
+                df_glob_editado = st.data_editor(df_glob_editable, use_container_width=True, key="editor_global_busqueda", hide_index=True)
+                
+                if st.button("➕ Agregar Seleccionadas al Lote de Análisis", key="btn_agregar_global"):
+                    sel_glob = df_glob_editado[df_glob_editado["Seleccionar"] == True]
+                    if not sel_glob.empty:
+                        ids_nuevos = sel_glob["INCIDENCIA"].tolist()
+                        df_nuevos_agregados = df[df["INCIDENCIA"].isin(ids_nuevos)].copy()
+                        df_nuevos_agregados["ORIGEN_TIPO"] = "Recibidas en el Día"
+                        if "UNIDAD" not in df_nuevos_agregados.columns: df_nuevos_agregados["UNIDAD"] = ""
+                        if "GERENCIA" not in df_nuevos_agregados.columns: df_nuevos_agregados["GERENCIA"] = ""
+                        
+                        # Combinar y evitar duplicados en el lote actual
+                        if not st.session_state["lote_seleccionado"].empty:
+                            df_combinado = pd.concat([st.session_state["lote_seleccionado"], df_nuevos_agregados]).drop_duplicates(subset=["INCIDENCIA"])
+                            st.session_state["lote_seleccionado"] = df_combinado
+                        else:
+                            st.session_state["lote_seleccionado"] = df_nuevos_agregados
+                            
+                        st.success(f"¡Se agregaron {len(ids_nuevos)} incidencias al lote!")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Marca al menos una incidencia en la casilla 'Seleccionar'.")
+            else:
+                st.info("No se encontraron coincidencias con ese criterio.")
+        
+        st.divider()
+
         df_lote = st.session_state["lote_seleccionado"]
 
         if df_lote.empty:
-            st.warning("No hay incidencias seleccionadas para analizar.")
-            if st.button("Regresar"):
-                st.session_state["vista_analisis"] = False
-                st.rerun()
+            st.warning("No hay incidencias seleccionadas en el lote para analizar. Utiliza el buscador superior para agregar incidencias.")
         else:
             st.info(
-                f"Mostrando análisis para un lote de **{len(df_lote)}**"
+                f"Mostrando análisis para un lote acumulado de **{len(df_lote)}**"
                 " incidencias seleccionadas."
             )
 
@@ -529,58 +588,8 @@ else:
 
     else:
         # ==========================================
-        # VISTA 1: DASHBOARD GENERAL CON PESTAÑAS Y SELECCIÓN
+        # VISTA 1: DASHBOARD GENERAL CON PESTAÑAS Y SELECCIÓN ACUMULATIVA
         # ==========================================
-        
-        # 🌟 NUEVA SECCIÓN DE ACCESO RÁPIDO Y BARRA DE BÚSQUEDA GLOBAL EN LA PÁGINA PRINCIPAL
-        st.markdown("### 🔍 Búsqueda Rápida y Acceso Directo a Análisis")
-        col_acc1, col_acc2 = st.columns([3, 1])
-        with col_acc1:
-            busqueda_global = st.text_input(
-                "🔎 Buscar por número de incidencia, dirección o cliente en toda la base de datos:",
-                placeholder="Escribe para buscar..."
-            )
-        with col_acc2:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🚀 Ir al Panel de Análisis", use_container_width=True):
-                if not st.session_state["lote_seleccionado"].empty:
-                    st.session_state["vista_analisis"] = True
-                    st.rerun()
-                else:
-                    st.warning("Selecciona al menos una incidencia abajo.")
-
-        if busqueda_global:
-            # Filtrar el dataframe global con la barra de búsqueda
-            mask_global = (
-                df["INCIDENCIA"].str.contains(busqueda_global, case=False, na=False) |
-                df["DIRECCIÓN"].str.contains(busqueda_global, case=False, na=False) |
-                df["CLIENTE"].str.contains(busqueda_global, case=False, na=False)
-            )
-            df_resultado_global = df[mask_global].copy()
-            st.markdown(f"**Resultados de búsqueda global ({len(df_resultado_global)} encontrados):**")
-            
-            if not df_resultado_global.empty:
-                df_glob_editable = df_resultado_global[columnas_mostrar].copy()
-                df_glob_editable.insert(0, "Seleccionar", False)
-                df_glob_editado = st.data_editor(df_glob_editable, use_container_width=True, key="editor_global_busqueda", hide_index=True)
-                
-                if st.button("🔍 Analizar Lote Seleccionado de Búsqueda Global", key="btn_analizar_global"):
-                    sel_glob = df_glob_editado[df_glob_editado["Seleccionar"] == True]
-                    if not sel_glob.empty:
-                        ids_sel = sel_glob["INCIDENCIA"].tolist()
-                        df_lote_g = df[df["INCIDENCIA"].isin(ids_sel)].copy()
-                        df_lote_g["ORIGEN_TIPO"] = "Recibidas en el Día"
-                        if "UNIDAD" not in df_lote_g.columns: df_lote_g["UNIDAD"] = ""
-                        if "GERENCIA" not in df_lote_g.columns: df_lote_g["GERENCIA"] = ""
-                        st.session_state["lote_seleccionado"] = df_lote_g
-                        st.session_state["vista_analisis"] = True
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ Marca al menos una incidencia en la casilla 'Seleccionar'.")
-            else:
-                st.info("No se encontraron coincidencias con ese criterio.")
-            st.divider()
-
         tab1, tab2, tab3 = st.tabs([
             "📅 Seguimiento Diario",
             "📈 Seguimiento Anual",
@@ -594,8 +603,7 @@ else:
 
             st.markdown(
                 "💡 *Selecciona las casillas (Columnas 'Seleccionar') de las"
-                " incidencias que deseas analizar en lote y haz clic en el botón"
-                " inferior.*"
+                " incidencias que deseas agregar a tu lote y haz clic en el botón inferior.*"
             )
 
             df_editable = df_sub[columnas_mostrar].copy()
@@ -611,31 +619,38 @@ else:
             col_btn1, col_btn2 = st.columns([2, 4])
             with col_btn1:
                 if st.button(
-                    f"🔍 Analizar Lote Seleccionado ({nombre_pestana})",
-                    key=f"btn_analizar_{nombre_pestana}",
+                    f"➕ Agregar Seleccionadas ({nombre_pestana})",
+                    key=f"btn_agregar_{nombre_pestana}",
                 ):
                     seleccionadas = df_editado[
                         df_editado["Seleccionar"] == True
                     ]
                     if not seleccionadas.empty:
                         ids_seleccionados = seleccionadas["INCIDENCIA"].tolist()
-                        df_lote_real = df[
+                        df_lote_nuevo = df[
                             df["INCIDENCIA"].isin(ids_seleccionados)
                         ].copy()
 
                         if tipo_origen_etiqueta:
-                            df_lote_real["ORIGEN_TIPO"] = tipo_origen_etiqueta
+                            df_lote_nuevo["ORIGEN_TIPO"] = tipo_origen_etiqueta
                         else:
-                            df_lote_real["ORIGEN_TIPO"] = "Recibidas en el Día"
+                            df_lote_nuevo["ORIGEN_TIPO"] = "Recibidas en el Día"
 
-                        if "UNIDAD" not in df_lote_real.columns:
-                            df_lote_real["UNIDAD"] = ""
-                        if "GERENCIA" not in df_lote_real.columns:
-                            df_lote_real["GERENCIA"] = ""
+                        if "UNIDAD" not in df_lote_nuevo.columns:
+                            df_lote_nuevo["UNIDAD"] = ""
+                        if "GERENCIA" not in df_lote_nuevo.columns:
+                            df_lote_nuevo["GERENCIA"] = ""
 
-                        st.session_state["lote_seleccionado"] = df_lote_real
-                        st.session_state["vista_analisis"] = True
-                        st.rerun()
+                        # Acumular con lo que ya estaba seleccionado
+                        if not st.session_state["lote_seleccionado"].empty:
+                            df_acumulado = pd.concat([st.session_state["lote_seleccionado"], df_lote_nuevo]).drop_duplicates(subset=["INCIDENCIA"])
+                            st.session_state["lote_seleccionado"] = df_acumulado
+                        else:
+                            st.session_state["lote_seleccionado"] = df_lote_nuevo
+
+                        st.success(
+                            f"¡Se agregaron {len(ids_seleccionados)} incidencias al lote de análisis! (Total actual: {len(st.session_state['lote_seleccionado'])})"
+                        )
                     else:
                         st.warning(
                             "⚠️ No has seleccionado ninguna incidencia en la"
