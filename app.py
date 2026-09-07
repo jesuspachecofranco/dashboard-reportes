@@ -368,7 +368,7 @@ else:
                 " incidencias seleccionadas."
             )
 
-            # Garantizar que existan las columnas UNIDAD y GERENCIA en el dataframe de lote
+            # Garantizar columnas UNIDAD y GERENCIA
             if "UNIDAD" not in df_lote.columns:
                 df_lote["UNIDAD"] = ""
             if "GERENCIA" not in df_lote.columns:
@@ -383,7 +383,6 @@ else:
                 " cada incidencia. Luego haz clic en 'Guardar Asignación'.*"
             )
 
-            # Preparamos las columnas relevantes para la edición manual individual
             cols_edicion = [
                 "INCIDENCIA",
                 "MOTIVO",
@@ -447,10 +446,6 @@ else:
                     "RECEPCION_DT" in df_lote.columns
                     and not df_lote["RECEPCION_DT"].isna().all()
                 ):
-                    # Agrupar por mes y año para el gráfico de barras por mes
-                    df_lote["MES_ANIO_STR"] = df_lote[
-                        "RECEPCION_DT"
-                    ].dt.strftime("%B %Y")
                     df_meses_lote = (
                         df_lote.groupby(
                             df_lote["RECEPCION_DT"].dt.to_period("M")
@@ -534,12 +529,62 @@ else:
 
     else:
         # ==========================================
-        # VISTA 1: DASHBOARD GENERAL CON PESTAÑAS Y SELECCIÓN DE LOTES
+        # VISTA 1: DASHBOARD GENERAL CON PESTAÑAS Y SELECCIÓN
         # ==========================================
+        
+        # 🌟 NUEVA SECCIÓN DE ACCESO RÁPIDO Y BARRA DE BÚSQUEDA GLOBAL EN LA PÁGINA PRINCIPAL
+        st.markdown("### 🔍 Búsqueda Rápida y Acceso Directo a Análisis")
+        col_acc1, col_acc2 = st.columns([3, 1])
+        with col_acc1:
+            busqueda_global = st.text_input(
+                "🔎 Buscar por número de incidencia, dirección o cliente en toda la base de datos:",
+                placeholder="Escribe para buscar..."
+            )
+        with col_acc2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🚀 Ir al Panel de Análisis", use_container_width=True):
+                if not st.session_state["lote_seleccionado"].empty:
+                    st.session_state["vista_analisis"] = True
+                    st.rerun()
+                else:
+                    st.warning("Selecciona al menos una incidencia abajo.")
+
+        if busqueda_global:
+            # Filtrar el dataframe global con la barra de búsqueda
+            mask_global = (
+                df["INCIDENCIA"].str.contains(busqueda_global, case=False, na=False) |
+                df["DIRECCIÓN"].str.contains(busqueda_global, case=False, na=False) |
+                df["CLIENTE"].str.contains(busqueda_global, case=False, na=False)
+            )
+            df_resultado_global = df[mask_global].copy()
+            st.markdown(f"**Resultados de búsqueda global ({len(df_resultado_global)} encontrados):**")
+            
+            if not df_resultado_global.empty:
+                df_glob_editable = df_resultado_global[columnas_mostrar].copy()
+                df_glob_editable.insert(0, "Seleccionar", False)
+                df_glob_editado = st.data_editor(df_glob_editable, use_container_width=True, key="editor_global_busqueda", hide_index=True)
+                
+                if st.button("🔍 Analizar Lote Seleccionado de Búsqueda Global", key="btn_analizar_global"):
+                    sel_glob = df_glob_editado[df_glob_editado["Seleccionar"] == True]
+                    if not sel_glob.empty:
+                        ids_sel = sel_glob["INCIDENCIA"].tolist()
+                        df_lote_g = df[df["INCIDENCIA"].isin(ids_sel)].copy()
+                        df_lote_g["ORIGEN_TIPO"] = "Recibidas en el Día"
+                        if "UNIDAD" not in df_lote_g.columns: df_lote_g["UNIDAD"] = ""
+                        if "GERENCIA" not in df_lote_g.columns: df_lote_g["GERENCIA"] = ""
+                        st.session_state["lote_seleccionado"] = df_lote_g
+                        st.session_state["vista_analisis"] = True
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Marca al menos una incidencia en la casilla 'Seleccionar'.")
+            else:
+                st.info("No se encontraron coincidencias con ese criterio.")
+            st.divider()
+
         tab1, tab2, tab3 = st.tabs([
             "📅 Seguimiento Diario",
             "📈 Seguimiento Anual",
-            "🔍 Búsqueda por Fecha",
+            "🔍 Búsqueda Avanzada (Fecha, Nº, Dirección)",
         ])
 
         def renderizar_tabla_con_seleccion(df_sub, nombre_pestana, tipo_origen_etiqueta=None):
@@ -578,13 +623,11 @@ else:
                             df["INCIDENCIA"].isin(ids_seleccionados)
                         ].copy()
 
-                        # Etiquetar el origen para el gráfico de origen
                         if tipo_origen_etiqueta:
                             df_lote_real["ORIGEN_TIPO"] = tipo_origen_etiqueta
                         else:
                             df_lote_real["ORIGEN_TIPO"] = "Recibidas en el Día"
 
-                        # Inicializar columnas de texto si no están
                         if "UNIDAD" not in df_lote_real.columns:
                             df_lote_real["UNIDAD"] = ""
                         if "GERENCIA" not in df_lote_real.columns:
@@ -1013,37 +1056,48 @@ else:
                 renderizar_tabla_con_seleccion(df_anual_filtro, "anual", "Recibidas en el Día")
 
         with tab3:
-            st.subheader("🔍 Buscador de Incidencias por Fecha")
-            col_f1, col_f2 = st.columns([1, 2])
+            st.subheader("🔍 Buscador Avanzado de Incidencias (Fecha, Número y Dirección)")
+            
+            col_f1, col_f2, col_f3 = st.columns(3)
             with col_f1:
                 fecha_busqueda = st.date_input(
                     "Seleccione la fecha a auditar:",
                     value=datetime(2026, 8, 12),
                 )
+            with col_f2:
+                filtro_num = st.text_input("Filtrar por Nº de Incidencia:", placeholder="Ej. 12345")
+            with col_f3:
+                filtro_dir = st.text_input("Filtrar por Dirección:", placeholder="Ej. Av. Principal")
 
             inicio_sel = pd.Timestamp(fecha_busqueda)
             fin_sel = inicio_sel + pd.Timedelta(days=1)
 
-            df_acumulados_dia = df[
-                (df["RECEPCION_DT"] < inicio_sel)
+            # Aplicar filtros base de fecha y filtros opcionales de número o dirección
+            df_base_filtrada = df.copy()
+            if filtro_num:
+                df_base_filtrada = df_base_filtrada[df_base_filtrada["INCIDENCIA"].str.contains(filtro_num, case=False, na=False)]
+            if filtro_dir:
+                df_base_filtrada = df_base_filtrada[df_base_filtrada["DIRECCIÓN"].str.contains(filtro_dir, case=False, na=False)]
+
+            df_acumulados_dia = df_base_filtrada[
+                (df_base_filtrada["RECEPCION_DT"] < inicio_sel)
                 & (
-                    df["FINALIZACION_DT"].isna()
-                    | (df["FINALIZACION_DT"] >= inicio_sel)
+                    df_base_filtrada["FINALIZACION_DT"].isna()
+                    | (df_base_filtrada["FINALIZACION_DT"] >= inicio_sel)
                 )
             ].copy()
             df_acumulados_dia["ORIGEN_TIPO"] = "Acumuladas"
 
-            df_recibidos_dia = df[
-                (df["RECEPCION_DT"] >= inicio_sel)
-                & (df["RECEPCION_DT"] < fin_sel)
+            df_recibidos_dia = df_base_filtrada[
+                (df_base_filtrada["RECEPCION_DT"] >= inicio_sel)
+                & (df_base_filtrada["RECEPCION_DT"] < fin_sel)
             ].copy()
             df_recibidos_dia["ORIGEN_TIPO"] = "Recibidas en el Día"
 
-            df_finalizados_dia = df[
-                (df["FINALIZACION_DT"] >= inicio_sel)
-                & (df["FINALIZACION_DT"] < fin_sel)
+            df_finalizados_dia = df_base_filtrada[
+                (df_base_filtrada["FINALIZACION_DT"] >= inicio_sel)
+                & (df_base_filtrada["FINALIZACION_DT"] < fin_sel)
             ].copy()
-            # Asignamos su origen histórico de recepción real para el gráfico si son finalizadas
             df_finalizados_dia["ORIGEN_TIPO"] = df_finalizados_dia["RECEPCION_DT"].apply(
                 lambda x: "Acumuladas" if x < inicio_sel else "Recibidas en el Día"
             )
