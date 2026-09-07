@@ -2,17 +2,14 @@ name: Streamlit Keep Alive
 
 on:
   schedule:
+    # Se ejecuta automáticamente cada 6 horas
     - cron: '0 */6 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Permite probarlo de forma manual cuando quieras
 
 jobs:
   ping-streamlit:
     runs-on: ubuntu-latest
     steps:
-      - name: Visitar URL de la aplicación
-        uses: fjogeleit/http-request-action@v1
-        with:
-          url: 'https://incidencias-2026.streamlit.app/'
-          method: 'GET'
-          timeout: 30000        # Aumenta el tiempo de espera a 30 segundos (30000 ms)
-          customHeaders: '{"User-Agent": "GitHub-Actions-Keep-Alive"}'
+      - name: Hacer ping a la aplicación
+        run: |
+          curl -L --max-redirs 5 -s -o /dev/null -w "Código de respuesta HTTP: %{http_code}\n" "https://incidencias-2026.streamlit.app/"
