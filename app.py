@@ -296,6 +296,8 @@ if tipo_actualizacion == "Corte de Sistema (.txt múltiple)":
             ):
                 exito = procesar_txts_seguro(archivos_txt_subidos)
                 if exito:
+                    # Limpiamos el caché para forzar a Streamlit a leer el nuevo archivo unificado
+                    st.cache_data.clear()
                     st.sidebar.success(
                         "¡Actualización exitosa! Se guardó tu 'resultado_actualizacion.xlsx'"
                         " y se actualizó el unificado creando un respaldo"
@@ -312,7 +314,6 @@ elif tipo_actualizacion == "Archivo Excel Directo (.xlsx)":
         "Actualizar base de datos general", type=["xlsx"]
     )
     if archivo_excel is not None:
-        # Creamos respaldo del original antes de reemplazarlo por seguridad
         if os.path.exists("resultado_unificado.xlsx"):
             timestamp_respaldo = datetime.now().strftime("%Y%m%d_%H%M%S")
             df_resp = pd.read_excel("resultado_unificado.xlsx")
@@ -323,6 +324,9 @@ elif tipo_actualizacion == "Archivo Excel Directo (.xlsx)":
 
         with open("resultado_unificado.xlsx", "wb") as f:
             f.write(archivo_excel.getbuffer())
+
+        # Limpiamos caché y recargamos para refrescar métricas
+        st.cache_data.clear()
         st.sidebar.success(
             "¡Base de datos actualizada! (Se guardó un respaldo del archivo"
             " anterior)."
