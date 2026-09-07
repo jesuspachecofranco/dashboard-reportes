@@ -300,15 +300,15 @@ archivos_cargados = st.sidebar.file_uploader(
     key=f"uploader_{st.session_state['uploader_key']}",
 )
 
+# Validamos los archivos cargados de manera directa
 if archivos_cargados:
-    # Separar automáticamente según la extensión
     txts = [f for f in archivos_cargados if f.name.endswith(".txt")]
     xlsx_files = [f for f in archivos_cargados if f.name.endswith(".xlsx")]
 
+    # Si hay archivos TXT, mostramos el botón de ejecución para TXT
     if txts:
         st.sidebar.info(
-            f"📁 Se detectaron {len(txts)} archivo(s) .txt listos para"
-            " procesar."
+            f"📁 Se detectaron {len(txts)} archivo(s) .txt listos."
         )
         if st.sidebar.button(
             "🚀 Ejecutar Depuración y Actualizar", use_container_width=True
@@ -321,13 +321,12 @@ if archivos_cargados:
                     st.cache_data.clear()
                     st.sidebar.success(
                         "¡Actualización exitosa! Se guardó"
-                        " 'resultado_actualizacion.xlsx' y se actualizó el"
-                        " unificado."
+                        " 'resultado_actualizacion.xlsx'."
                     )
-                    # Limpiamos el uploader incrementando la clave y recargando
                     st.session_state["uploader_key"] += 1
                     st.rerun()
 
+    # Si hay un archivo Excel, mostramos el botón de actualización por Excel
     elif xlsx_files:
         archivo_excel = xlsx_files[0]
         st.sidebar.info(f"📊 Archivo Excel detectado: {archivo_excel.name}")
@@ -347,13 +346,12 @@ if archivos_cargados:
 
             st.cache_data.clear()
             st.sidebar.success(
-                "¡Base de datos actualizada con Excel! (Se guardó un respaldo"
-                " previo)."
+                "¡Base de datos actualizada con Excel correctamente!"
             )
             st.session_state["uploader_key"] += 1
             st.rerun()
 
-# Botón permanente justo abajo para descargar el archivo de actualización si existe
+# Botón permanente para descargar el archivo de actualización si este existe
 if os.path.exists("resultado_actualizacion.xlsx"):
     st.sidebar.markdown("---")
     with open("resultado_actualizacion.xlsx", "rb") as f:
