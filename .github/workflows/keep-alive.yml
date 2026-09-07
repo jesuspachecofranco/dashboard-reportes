@@ -10,7 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Hacer ping a la aplicación
-        run: |
-          URL="https://incidencias-2026.streamlit.app/"
-          echo "Visitando la URL: $URL"
-          curl -L --max-redirs 5 -s -o /dev/null -w "Código HTTP recibido: %{http_code}\n" "$URL"
+        run: curl -L --max-redirs 5 -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://incidencias-2026.streamlit.app/
