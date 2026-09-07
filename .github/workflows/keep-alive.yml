@@ -12,7 +12,7 @@ jobs:
       - name: Visitar URL de la aplicación
         uses: fjogeleit/http-request-action@v1
         with:
-          url: 'TU_URL_DE_STREAMLIT_AQUÍ'
+          url: 'https://incidencias-2026.streamlit.app/'
           method: 'GET'
           timeout: 30000        # Aumenta el tiempo de espera a 30 segundos (30000 ms)
           customHeaders: '{"User-Agent": "GitHub-Actions-Keep-Alive"}'
