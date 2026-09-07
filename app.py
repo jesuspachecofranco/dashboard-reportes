@@ -295,23 +295,30 @@ if "uploader_key" not in st.session_state:
 
 archivos_cargados = st.sidebar.file_uploader(
     "Sube archivos (.txt múltiples o .xlsx)",
-    type=["txt", "xlsx"],
+    type=["txt", "TXT", "xlsx", "XLSX"],
     accept_multiple_files=True,
     key=f"uploader_{st.session_state['uploader_key']}",
 )
 
-# Validamos los archivos cargados de manera directa
+# Validamos los archivos cargados de manera robusta
 if archivos_cargados:
-    txts = [f for f in archivos_cargados if f.name.endswith(".txt")]
-    xlsx_files = [f for f in archivos_cargados if f.name.endswith(".xlsx")]
+    # Filtramos usando .lower() para evitar problemas si el archivo es .TXT o .XLSX en mayúsculas
+    txts = [f for f in archivos_cargados if f.name.lower().endswith(".txt")]
+    xlsx_files = [f for f in archivos_cargados if f.name.lower().endswith(".xlsx")]
 
-    # Si hay archivos TXT, mostramos el botón de ejecución para TXT
-    if txts:
+    # Depuración visual temporal para confirmar qué detectó (puedes borrar esta línea después)
+    st.sidebar.caption(
+        f"DEBUG: Detectados {len(txts)} txt(s) y {len(xlsx_files)} xlsx(s)"
+    )
+
+    if len(txts) > 0:
         st.sidebar.info(
             f"📁 Se detectaron {len(txts)} archivo(s) .txt listos."
         )
         if st.sidebar.button(
-            "🚀 Ejecutar Depuración y Actualizar", use_container_width=True
+            "🚀 Ejecutar Depuración y Actualizar",
+            key="btn_ejecutar_txt",
+            use_container_width=True,
         ):
             with st.spinner(
                 "Depurando, cotejando y generando respaldo seguro..."
@@ -326,12 +333,13 @@ if archivos_cargados:
                     st.session_state["uploader_key"] += 1
                     st.rerun()
 
-    # Si hay un archivo Excel, mostramos el botón de actualización por Excel
-    elif xlsx_files:
+    elif len(xlsx_files) > 0:
         archivo_excel = xlsx_files[0]
         st.sidebar.info(f"📊 Archivo Excel detectado: {archivo_excel.name}")
         if st.sidebar.button(
-            "🚀 Actualizar Base de Datos con Excel", use_container_width=True
+            "🚀 Actualizar Base de Datos con Excel",
+            key="btn_ejecutar_xlsx",
+            use_container_width=True,
         ):
             if os.path.exists("resultado_unificado.xlsx"):
                 timestamp_respaldo = datetime.now().strftime("%Y%m%d_%H%M%S")
