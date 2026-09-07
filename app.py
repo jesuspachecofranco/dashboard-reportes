@@ -291,7 +291,7 @@ columnas_mostrar = [
 ]
 
 # ==========================================
-# VISTAS PRINCIPALES EN TABS (INCLUYENDO CARGA Y ANÁLISIS)
+# VISTAS PRINCIPALES EN TABS
 # ==========================================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📅 Seguimiento Diario",
@@ -899,6 +899,9 @@ with tab3:
 
 
 with tab4:
+    # ==========================================
+    # PESTAÑA 4: ANÁLISIS (ACTUALIZADO CON LISTA POR COMAS)
+    # ==========================================
     col_ba1, _ = st.columns([1, 4])
     with col_ba1:
         if st.button("🗑️ Limpiar Lote Actual", use_container_width=True):
@@ -906,59 +909,53 @@ with tab4:
             st.success("¡Lote limpiado!")
             st.rerun()
 
-    st.header("🎯 Panel de Análisis y Buscador de Lote")
+    st.header("🎯 Panel de Análisis por Lista de Incidencias")
     
     if df is not None:
-        st.markdown("### 🔍 Buscador Rápido para Acumular al Lote")
-        busqueda_global = st.text_input(
-            "Buscar por número de incidencia, dirección o cliente:",
-            placeholder="Escribe para buscar..."
+        st.markdown("### 📝 Ingreso de Lote por Texto")
+        texto_lista = st.text_area(
+            "Escribe o pega los números de incidencias separados por comas:",
+            placeholder="Ej. 12345, 67890, 11223, 44556",
+            key="input_texto_lote"
         )
-
-        if busqueda_global:
-            mask_global = (
-                df["INCIDENCIA"].str.contains(busqueda_global, case=False, na=False) |
-                df["DIRECCIÓN"].str.contains(busqueda_global, case=False, na=False) |
-                df["CLIENTE"].str.contains(busqueda_global, case=False, na=False)
-            )
-            df_resultado_global = df[mask_global].copy()
-            st.markdown(f"**Resultados de búsqueda global ({len(df_resultado_global)} encontrados):**")
-            
-            if not df_resultado_global.empty:
-                df_glob_editable = df_resultado_global[columnas_mostrar].copy()
-                df_glob_editable.insert(0, "Seleccionar", False)
-                df_glob_editado = st.data_editor(df_glob_editable, use_container_width=True, key="editor_global_busqueda", hide_index=True)
+        
+        if st.button("🚀 Cargar Lote para Análisis", type="primary"):
+            if texto_lista.strip():
+                # Procesar la cadena separada por comas
+                lista_ids = [x.strip().upper() for x in texto_lista.split(",") if x.strip()]
+                lista_ids = [x.replace(".0", "") for x in lista_ids]
                 
-                if st.button("➕ Agregar Seleccionadas al Lote de Análisis", key="btn_agregar_global"):
-                    sel_glob = df_glob_editado[df_glob_editado["Seleccionar"] == True]
-                    if not sel_glob.empty:
-                        ids_nuevos = sel_glob["INCIDENCIA"].tolist()
-                        df_nuevos_agregados = df[df["INCIDENCIA"].isin(ids_nuevos)].copy()
-                        df_nuevos_agregados["ORIGEN_TIPO"] = "Recibidas en el Día"
-                        if "UNIDAD" not in df_nuevos_agregados.columns: df_nuevos_agregados["UNIDAD"] = ""
-                        if "GERENCIA" not in df_nuevos_agregados.columns: df_nuevos_agregados["GERENCIA"] = ""
-                        
-                        if not st.session_state["lote_seleccionado"].empty:
-                            df_combinado = pd.concat([st.session_state["lote_seleccionado"], df_nuevos_agregados]).drop_duplicates(subset=["INCIDENCIA"])
-                            st.session_state["lote_seleccionado"] = df_combinado
-                        else:
-                            st.session_state["lote_seleccionado"] = df_nuevos_agregados
-                            
-                        st.success(f"¡Se agregaron {len(ids_nuevos)} incidencias al lote!")
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ Marca al menos una incidencia en la casilla 'Seleccionar'.")
+                # Filtrar el DataFrame principal
+                df_encontrados = df[df["INCIDENCIA"].isin(lista_ids)].copy()
+                
+                if not df_encontrados.empty:
+                    df_encontrados["ORIGEN_TIPO"] = "Recibidas en el Día"
+                    if "UNIDAD" not in df_encontrados.columns: df_encontrados["UNIDAD"] = ""
+                    if "GERENCIA" not in df_encontrados.columns: df_encontrados["GERENCIA"] = ""
+                    
+                    st.session_state["lote_seleccionado"] = df_encontrados
+                    
+                    # Detectar si faltaron algunas por ubicar
+                    ids_encontrados_set = set(df_encontrados["INCIDENCIA"].tolist())
+                    ids_faltantes = [i for i in lista_ids if i not in ids_encontrados_set]
+                    
+                    st.success(f"¡Lote cargado con éxito! Se encontraron {len(df_encontrados)} de {len(lista_ids)} incidencias.")
+                    if ids_faltantes:
+                        st.warning(f"⚠️ Las siguientes incidencias no se encontraron en la base de datos: {', '.join(ids_faltantes)}")
+                    st.rerun()
+                else:
+                    st.error("❌ No se encontró ninguna de las incidencias ingresadas en la base de datos.")
             else:
-                st.info("No se encontraron coincidencias con ese criterio.")
+                st.warning("⚠️ Por favor, ingresa al menos un número de incidencia.")
         
         st.divider()
 
     df_lote = st.session_state["lote_seleccionado"]
 
     if df_lote.empty:
-        st.warning("No hay incidencias seleccionadas en el lote para analizar. Utiliza las pestañas anteriores o el buscador superior para agregar incidencias.")
+        st.info("No hay incidencias cargadas en el lote de análisis. Ingresa una lista de números en el cuadro de texto superior o selecciónalos desde las otras pestañas.")
     else:
-        st.info(f"Mostrando análisis para un lote acumulado de **{len(df_lote)}** incidencias seleccionadas.")
+        st.info(f"Mostrando análisis para el lote actual de **{len(df_lote)}** incidencias.")
 
         if "UNIDAD" not in df_lote.columns:
             df_lote["UNIDAD"] = ""
@@ -1078,7 +1075,7 @@ with tab4:
 
 with tab5:
     # ==========================================
-    # PESTAÑA 5: CARGA Y ACTUALIZACIÓN (REEMPLAZO DEL SIDEBAR)
+    # PESTAÑA 5: CARGA Y ACTUALIZACIÓN
     # ==========================================
     st.subheader("📁 Carga de Zonas y Actualización de Base de Datos")
     st.markdown("Sube aquí tus archivos `.txt` de incidencias para depurar, consolidar y unificar los datos en el sistema.")
