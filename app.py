@@ -346,6 +346,34 @@ if os.path.exists("resultado_actualizacion.xlsx"):
     # ==========================================
     # PESTAÑA 1: SEGUIMIENTO DIARIO
     # ==========================================
+df = cargar_datos()
+
+if df is None:
+    st.error(
+        "❌ No se encontró el archivo 'resultado_unificado.xlsx'. Sube tus"
+        " archivos .txt en el panel lateral para comenzar."
+    )
+else:
+    columnas_mostrar = [
+        "INCIDENCIA",
+        "RECEPCIÓN",
+        "FINALIZACIÓN",
+        "DIRECCIÓN",
+        "CLIENTE",
+        "MOTIVO",
+        "ESTADO",
+    ]
+
+    # Declaramos las pestañas aquí, con la indentación correcta (4 espacios)
+    tab1, tab2, tab3 = st.tabs([
+        "📅 Seguimiento Diario",
+        "📈 Seguimiento Anual",
+        "🔍 Búsqueda por Fecha",
+    ])
+
+    # ==========================================
+    # PESTAÑA 1: SEGUIMIENTO DIARIO
+    # ==========================================
     with tab1:
         st.subheader("📅 Comportamiento Diario por Mes")
         col_s1, col_s2, _ = st.columns([1, 1, 2])
@@ -374,9 +402,7 @@ if os.path.exists("resultado_actualizacion.xlsx"):
                 index=7,
             )
             mes_seleccionado = [
-                k
-                for k, v in meses_dict.items()
-                if v == mes_nombre_seleccionado
+                k for k, v in meses_dict.items() if v == mes_nombre_seleccionado
             ][0]
 
         inicio_mes_dinamico = pd.Timestamp(
