@@ -301,17 +301,20 @@ archivos_cargados = st.sidebar.file_uploader(
     key=f"uploader_{st.session_state['uploader_key']}",
 )
 
-# Si hay archivos cargados, mostramos el botón de ejecución de inmediato
+# Mostramos información si hay archivos cargados
 if archivos_cargados:
     st.sidebar.info(
         f"📁 Se detectaron {len(archivos_cargados)} archivo(s) .txt listos."
     )
 
-    if st.sidebar.button(
-        "🚀 Ejecutar Depuración y Actualizar",
-        key="btn_ejecutar_txt",
-        use_container_width=True,
-    ):
+# EL BOTÓN SIEMPRE ESTÁ VISIBLE EN LA BARRA LATERAL
+if st.sidebar.button(
+    "🚀 Ejecutar Depuración y Actualizar",
+    key="btn_ejecutar_txt",
+    use_container_width=True,
+):
+    # Validamos al hacer clic si realmente hay archivos cargados
+    if archivos_cargados:
         with st.spinner(
             "Depurando, cotejando y generando respaldo seguro..."
         ):
@@ -325,8 +328,12 @@ if archivos_cargados:
                 # Incrementamos la clave para limpiar el uploader y recargar la vista
                 st.session_state["uploader_key"] += 1
                 st.rerun()
+    else:
+        st.sidebar.warning(
+            "⚠️ Por favor, sube al menos un archivo .txt antes de ejecutar."
+        )
 
-# Botón permanente justo abajo (después del bloque de ejecución) para descargar el archivo de actualización si existe
+# Botón permanente justo abajo para descargar el archivo de actualización si existe
 if os.path.exists("resultado_actualizacion.xlsx"):
     st.sidebar.markdown("---")
     with open("resultado_actualizacion.xlsx", "rb") as f:
