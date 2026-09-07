@@ -345,7 +345,6 @@ else:
         "ESTADO",
     ]
 
-    # Botón global en barra lateral o principal para regresar a la vista general si estamos analizando lote
     if st.session_state["vista_analisis"]:
         if st.sidebar.button("🔙 Volver al Dashboard General"):
             st.session_state["vista_analisis"] = False
@@ -369,48 +368,71 @@ else:
                 " incidencias seleccionadas."
             )
 
-            # Asignación interactiva de Unidad y Gerencia para el lote
-            st.subheader("🛠️ Asignación de Unidad y Gerencia al Lote")
-            with st.form("form_asignacion"):
-                col_asg1, col_asg2 = st.columns(2)
-                with col_asg1:
-                    unidad_asignada = st.selectbox(
-                        "Seleccione Unidad Atendedora:",
-                        [
-                            "Unidad Técnica A",
-                            "Unidad Técnica B",
-                            "Unidad Operativa Norte",
-                            "Unidad Operativa Sur",
-                            "Cuadrilla Especial",
-                        ],
-                    )
-                with col_asg2:
-                    gerencia_asignada = st.selectbox(
-                        "Seleccione Gerencia Responsable:",
-                        [
-                            "Gerencia de Operaciones",
-                            "Gerencia de Mantenimiento",
-                            "Gerencia Comercial",
-                            "Gerencia Técnica",
-                        ],
-                    )
+            # Garantizar que existan las columnas UNIDAD y GERENCIA en el dataframe de lote
+            if "UNIDAD" not in df_lote.columns:
+                df_lote["UNIDAD"] = ""
+            if "GERENCIA" not in df_lote.columns:
+                df_lote["GERENCIA"] = ""
 
-                submit_asignacion = st.form_submit_button(
-                    "💾 Guardar Asignación y Actualizar Gráficos"
-                )
+            st.subheader(
+                "✍️ Asignación Manual de Unidad y Gerencia por Incidencia"
+            )
+            st.markdown(
+                "💡 *Haz doble clic en las columnas **UNIDAD** o **GERENCIA** de"
+                " la tabla inferior para escribir el texto de forma manual para"
+                " cada incidencia. Luego haz clic en 'Guardar Asignación'.*"
+            )
 
-            if submit_asignacion:
-                df_lote["UNIDAD"] = unidad_asignada
-                df_lote["GERENCIA"] = gerencia_asignada
+            # Preparamos las columnas relevantes para la edición manual individual
+            cols_edicion = [
+                "INCIDENCIA",
+                "MOTIVO",
+                "ESTADO",
+                "UNIDAD",
+                "GERENCIA",
+            ]
+            # Asegurarnos de que existan todas
+            for c in cols_edicion:
+                if c not in df_lote.columns:
+                    df_lote[c] = ""
+
+            df_para_editar = df_lote[cols_edicion].copy()
+
+            # Editor interactivo por fila
+            df_editado_manual = st.data_editor(
+                df_para_editar,
+                use_container_width=True,
+                key="editor_manual_unidades",
+                hide_index=True,
+                disabled=[
+                    "INCIDENCIA",
+                    "MOTIVO",
+                    "ESTADO",
+                ],  # Solo permitimos editar Unidad y Gerencia
+            )
+
+            if st.button(
+                "💾 Guardar Asignación Manual y Actualizar Gráficos",
+                key="btn_guardar_manual",
+            ):
+                # Actualizamos el dataframe principal del lote con los valores escritos por el usuario
+                for idx, row in df_editado_manual.iterrows():
+                    inc_id = row["INCIDENCIA"]
+                    mask = df_lote["INCIDENCIA"] == inc_id
+                    df_lote.loc[mask, "UNIDAD"] = str(
+                        row["UNIDAD"]
+                    ).strip().upper()
+                    df_lote.loc[mask, "GERENCIA"] = str(
+                        row["GERENCIA"]
+                    ).strip().upper()
+
                 st.session_state["lote_seleccionado"] = df_lote
-                st.success(
-                    f"¡Asignado correctamente a {unidad_asignada} ("
-                    f"{gerencia_asignada})!"
-                )
+                st.success("¡Asignaciones guardadas y gráficos actualizados!")
+                st.rerun()
 
             st.divider()
 
-            # Bloque de Gráficos Solicitados en el Esquema
+            # Bloque de Gráficos del Esquema
             col_g1, col_g2 = st.columns(2)
 
             with col_g1:
@@ -467,27 +489,28 @@ else:
 
             with col_g4:
                 st.markdown("##### 🏢 4. Gráfico por Unidad Asignada")
-                if (
-                    "UNIDAD" in df_lote.columns
-                    and not df_lote["UNIDAD"].isna().all()
-                ):
+                # Filtramos vacíos para que el gráfico sea limpio
+                df_unidad_valida = df_lote[
+                    (df_lote["UNIDAD"].notna()) & (df_lote["UNIDAD"] != "")
+                ]
+                if not df_unidad_valida.empty:
                     fig_unidad = px.bar(
-                        df_lote["UNIDAD"].value_counts().reset_index(),
+                        df_unidad_valida["UNIDAD"].value_counts().reset_index(),
                         x="UNIDAD",
                         y="count",
-                        title="Carga de Incidencias por Unidad",
+                        title="Carga de Incidencias por Unidad (Manual)",
                         labels={"UNIDAD": "Unidad", "count": "Cantidad"},
                         color="UNIDAD",
                     )
                     st.plotly_chart(fig_unidad, use_container_width=True)
                 else:
                     st.info(
-                        "Asigne una unidad mediante el formulario superior para"
-                        " visualizar este gráfico."
+                        "Asigne texto en la columna 'UNIDAD' de la tabla"
+                        " superior para visualizar este gráfico."
                     )
 
             st.markdown("---")
-            st.subheader("📋 Detalle del Lote Seleccionado")
+            st.subheader("📋 Detalle Completo del Lote Seleccionado")
             st.dataframe(df_lote, use_container_width=True)
 
     else:
@@ -500,7 +523,6 @@ else:
             "🔍 Búsqueda por Fecha",
         ])
 
-        # Función auxiliar para renderizar tablas con opción de selección múltiple (checkboxes) y botón de análisis
         def renderizar_tabla_con_seleccion(df_sub, nombre_pestana):
             if df_sub.empty:
                 st.info("No hay registros para mostrar en esta sección.")
@@ -512,11 +534,9 @@ else:
                 " inferior.*"
             )
 
-            # Preparamos una copia con una columna booleana al inicio para checkboxes interactivos
             df_editable = df_sub[columnas_mostrar].copy()
             df_editable.insert(0, "Seleccionar", False)
 
-            # Usamos st.data_editor para permitir clics en casillas
             df_editado = st.data_editor(
                 df_editable,
                 use_container_width=True,
@@ -530,16 +550,20 @@ else:
                     f"🔍 Analizar Lote Seleccionado ({nombre_pestana})",
                     key=f"btn_analizar_{nombre_pestana}",
                 ):
-                    # Filtramos filas donde 'Seleccionar' sea True
                     seleccionadas = df_editado[
                         df_editado["Seleccionar"] == True
                     ]
                     if not seleccionadas.empty:
-                        # Obtenemos las incidencias reales combinando con el df original completo
                         ids_seleccionados = seleccionadas["INCIDENCIA"].tolist()
                         df_lote_real = df[
                             df["INCIDENCIA"].isin(ids_seleccionados)
                         ].copy()
+
+                        # Inicializar columnas de texto si no están
+                        if "UNIDAD" not in df_lote_real.columns:
+                            df_lote_real["UNIDAD"] = ""
+                        if "GERENCIA" not in df_lote_real.columns:
+                            df_lote_real["GERENCIA"] = ""
 
                         st.session_state["lote_seleccionado"] = df_lote_real
                         st.session_state["vista_analisis"] = True
