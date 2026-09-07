@@ -56,7 +56,7 @@ def procesar_txts_seguro(archivos_subidos):
         12: "DICIEMBRE",
     }
 
-    indices_a_conservار = [
+    indices_a_conservar = [
         13,
         14,
         15,
@@ -188,14 +188,11 @@ def procesar_txts_seguro(archivos_subidos):
     if lista_dataframes:
         df_nuevo = pd.concat(lista_dataframes, ignore_index=True)
 
-        # 1. Guardar primero la data procesada limpia en un archivo aislado de actualización
         archivo_actualizacion = "resultado_actualizacion.xlsx"
         df_nuevo.to_excel(archivo_actualizacion, index=False)
 
-        # 2. Cotejar y fusionar con el histórico para crear la nueva versión unificada segura
         if os.path.exists("resultado_unificado.xlsx"):
             try:
-                # Crear un respaldo automático con fecha/hora antes de tocar el original
                 timestamp_respaldo = datetime.now().strftime("%Y%m%d_%H%M%S")
                 archivo_respaldo = (
                     f"resultado_unificado_respaldo_{timestamp_respaldo}.xlsx"
@@ -205,7 +202,6 @@ def procesar_txts_seguro(archivos_subidos):
                 )
                 df_existente_seguridad.to_excel(archivo_respaldo, index=False)
 
-                # Fusionar con el histórico sin perder datos anteriores
                 df_final = pd.concat(
                     [df_existente_seguridad, df_nuevo], ignore_index=True
                 )
@@ -217,7 +213,6 @@ def procesar_txts_seguro(archivos_subidos):
         else:
             df_final = df_nuevo
 
-        # Generar el Excel definitivo con formato OpenPyXL
         wb = Workbook()
         ws = wb.active
         ws.title = "Consolidado Zonas"
@@ -273,7 +268,6 @@ def procesar_txts_seguro(archivos_subidos):
         wb.save("resultado_unificado.xlsx")
         return True
     return False
-
 
 # ==========================================
 # PANEL LATERAL: GESTIÓN Y ACTUALIZACIÓN SEGURA
