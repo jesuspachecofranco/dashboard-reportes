@@ -303,10 +303,16 @@ archivos_cargados = st.sidebar.file_uploader(
 if archivos_cargados:
     # Separar automáticamente según la extensión
     txts = [f for f in archivos_cargados if f.name.endswith(".txt")]
-    xlsx_Files = [f for f in archivos_cargados if f.name.endswith(".xlsx")]
+    xlsx_files = [f for f in archivos_cargados if f.name.endswith(".xlsx")]
 
     if txts:
-        if st.sidebar.button("Ejecutar Depuración y Actualizar (.txt)"):
+        st.sidebar.info(
+            f"📁 Se detectaron {len(txts)} archivo(s) .txt listos para"
+            " procesar."
+        )
+        if st.sidebar.button(
+            "🚀 Ejecutar Depuración y Actualizar", use_container_width=True
+        ):
             with st.spinner(
                 "Depurando, cotejando y generando respaldo seguro..."
             ):
@@ -322,9 +328,12 @@ if archivos_cargados:
                     st.session_state["uploader_key"] += 1
                     st.rerun()
 
-    elif xlsx_Files:
-        archivo_excel = xlsx_Files[0]
-        if st.sidebar.button("Actualizar Base de Datos con Excel"):
+    elif xlsx_files:
+        archivo_excel = xlsx_files[0]
+        st.sidebar.info(f"📊 Archivo Excel detectado: {archivo_excel.name}")
+        if st.sidebar.button(
+            "🚀 Actualizar Base de Datos con Excel", use_container_width=True
+        ):
             if os.path.exists("resultado_unificado.xlsx"):
                 timestamp_respaldo = datetime.now().strftime("%Y%m%d_%H%M%S")
                 df_resp = pd.read_excel("resultado_unificado.xlsx")
@@ -354,7 +363,6 @@ if os.path.exists("resultado_actualizacion.xlsx"):
             file_name="resultado_actualizacion.xlsx",
             use_container_width=True,
         )
-
 # ==========================================
 # CARGA Y VISUALIZACIÓN DE DATOS (MANTIENE DISEÑO)
 # ==========================================
