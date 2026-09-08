@@ -18,9 +18,12 @@ st.set_page_config(
 
 st.title("📊 Control y Seguimiento de Incidencias")
 
-# Inicializar variables de estado para la selección de lotes si no existen
+# Inicializar variables de estado si no existen
 if "lote_seleccionado" not in st.session_state:
     st.session_state["lote_seleccionado"] = pd.DataFrame()
+
+if "lotes_guardados" not in st.session_state:
+    st.session_state["lotes_guardados"] = {}  # Diccionario: {nombre_lote: DataFrame_congelado}
 
 
 # ==========================================
@@ -291,13 +294,14 @@ columnas_mostrar = [
 ]
 
 # ==========================================
-# VISTAS PRINCIPALES EN TABS
+# VISTAS PRINCIPALES EN TABS (6 TABS EN TOTAL)
 # ==========================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📅 Seguimiento Diario",
     "📈 Seguimiento Anual",
     "🔍 Búsqueda Avanzada",
     "🎯 Análisis",
+    "📁 Lotes Guardados",
     "📁 Carga y Actualización",
 ])
 
@@ -357,6 +361,84 @@ def renderizar_tabla_con_seleccion(df_sub, nombre_pestana, tipo_origen_etiqueta=
                 )
             else:
                 st.warning("⚠️ No has seleccionado ninguna incidencia en la tabla.")
+
+
+# Función auxiliar para renderizar gráficos de un DataFrame de lote dado
+def renderizar_panel_graficos(df_lote_objetivo):
+    col_g1, col_g2 = st.columns(2)
+
+    with col_g1:
+        st.markdown("##### 📍 1. Gráfico de Zonas")
+        if "ZONA" in df_lote_objetivo.columns and not df_lote_objetivo["ZONA"].isna().all():
+            fig_zona = px.pie(df_lote_objetivo, names="ZONA", title="Distribución por Zonas", hole=0.4)
+            st.plotly_chart(fig_zona, use_container_width=True)
+        else:
+            st.info("No hay datos de zona disponibles en este lote.")
+
+    with col_g2:
+        st.markdown("##### 📅 2. Gráfico por Mes de Recepción")
+        if "RECEPCION_DT" in df_lote_objetivo.columns and not df_lote_objetivo["RECEPCION_DT"].isna().all():
+            df_meses_lote = df_lote_objetivo.groupby(df_lote_objetivo["RECEPCION_DT"].dt.to_period("M")).size().reset_index(name="CANTIDAD")
+            df_meses_lote["MES_STR"] = df_meses_lote["RECEPCION_DT"].dt.strftime("%B %Y").str.upper()
+
+            fig_mes = px.bar(
+                df_meses_lote,
+                x="MES_STR",
+                y="CANTIDAD",
+                title="Incidencias Agrupadas por Mes de Recepción",
+                labels={"MES_STR": "Mes", "CANTIDAD": "Cantidad"},
+                color="CANTIDAD",
+                color_continuous_scale="Blues",
+            )
+            st.plotly_chart(fig_mes, use_container_width=True)
+        else:
+            st.info("No hay fechas válidas para este gráfico.")
+
+    col_g3, col_g4 = st.columns(2)
+
+    with col_g3:
+        st.markdown("##### 🏷️ 3. Gráfico de Motivos")
+        if "MOTIVO" in df_lote_objetivo.columns:
+            fig_motivo = px.bar(
+                df_lote_objetivo["MOTIVO"].value_counts().reset_index(),
+                x="MOTIVO",
+                y="count",
+                title="Incidencias por Grupo de Origen / Motivo",
+                labels={"MOTIVO": "Motivo", "count": "Cantidad"},
+            )
+            st.plotly_chart(fig_motivo, use_container_width=True)
+
+    with col_g4:
+        st.markdown("##### 🔄 4. Gráfico por Origen")
+        if "ORIGEN_TIPO" in df_lote_objetivo.columns and not df_lote_objetivo["ORIGEN_TIPO"].isna().all():
+            fig_origen = px.pie(
+                df_lote_objetivo,
+                names="ORIGEN_TIPO",
+                title="Clasificación por Origen",
+                hole=0.4,
+                color="ORIGEN_TIPO",
+                color_discrete_map={"Acumuladas": "#94a3b8", "Recibidas en el Día": "#3b82f6"}
+            )
+            st.plotly_chart(fig_origen, use_container_width=True)
+        else:
+            st.info("No se cuenta con la clasificación de origen en este lote.")
+
+    col_g5, _ = st.columns(2)
+    with col_g5:
+        st.markdown("##### 🏢 5. Gráfico por Unidad Asignada")
+        df_unidad_valida = df_lote_objetivo[(df_lote_objetivo["UNIDAD"].notna()) & (df_lote_objetivo["UNIDAD"] != "")]
+        if not df_unidad_valida.empty:
+            fig_unidad = px.bar(
+                df_unidad_valida["UNIDAD"].value_counts().reset_index(),
+                x="UNIDAD",
+                y="count",
+                title="Carga de Incidencias por Unidad (Manual)",
+                labels={"UNIDAD": "Unidad", "count": "Cantidad"},
+                color="UNIDAD",
+            )
+            st.plotly_chart(fig_unidad, use_container_width=True)
+        else:
+            st.info("Asigne texto en la columna 'UNIDAD' para visualizar este gráfico.")
 
 
 with tab1:
@@ -926,15 +1008,12 @@ with tab4:
         
         if btn_cargar:
             if texto_lista.strip():
-                # Procesar la cadena separada por comas
                 lista_ids = [x.strip().upper() for x in texto_lista.split(",") if x.strip()]
                 lista_ids = [x.replace(".0", "") for x in lista_ids]
                 
-                # Filtrar el DataFrame principal
                 df_encontrados = df[df["INCIDENCIA"].isin(lista_ids)].copy()
                 
                 if not df_encontrados.empty:
-                    # Clasificación automática de origen (si se resolvió en días distintos o sigue pendiente -> Acumuladas)
                     def clasificar_origen_auto(row):
                         rec = row["RECEPCION_DT"]
                         fin = row["FINALIZACION_DT"]
@@ -993,93 +1072,37 @@ with tab4:
             disabled=["INCIDENCIA", "MOTIVO", "ESTADO"],
         )
 
-        if st.button("💾 Guardar Asignación Manual y Actualizar Gráficos", key="btn_guardar_manual"):
-            for idx, row in df_editado_manual.iterrows():
-                inc_id = row["INCIDENCIA"]
-                mask = df_lote["INCIDENCIA"] == inc_id
-                df_lote.loc[mask, "UNIDAD"] = str(row["UNIDAD"]).strip().upper()
-                df_lote.loc[mask, "GERENCIA"] = str(row["GERENCIA"]).strip().upper()
+        col_save1, col_save2 = st.columns([2, 2])
+        with col_save1:
+            if st.button("💾 Guardar Asignación Manual y Actualizar Gráficos", key="btn_guardar_manual", use_container_width=True):
+                for idx, row in df_editado_manual.iterrows():
+                    inc_id = row["INCIDENCIA"]
+                    mask = df_lote["INCIDENCIA"] == inc_id
+                    df_lote.loc[mask, "UNIDAD"] = str(row["UNIDAD"]).strip().upper()
+                    df_lote.loc[mask, "GERENCIA"] = str(row["GERENCIA"]).strip().upper()
 
-            st.session_state["lote_seleccionado"] = df_lote
-            st.success("¡Asignaciones guardadas y gráficos actualizados!")
-            st.rerun()
+                st.session_state["lote_seleccionado"] = df_lote
+                st.success("¡Asignaciones guardadas y gráficos actualizados!")
+                st.rerun()
+
+        with col_save2:
+            nombre_guardar_input = st.text_input("Nombre para guardar este lote:", placeholder="Ej. Análisis Operativo Semana 1", key="input_nombre_lote_guardado")
+            if st.button("📥 Almacenar y Congelar este Análisis", key="btn_almacenar_lote", type="primary", use_container_width=True):
+                if nombre_guardar_input.strip():
+                    # Copia profunda independiente (Snapshot congelado)
+                    timestamp_lote = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                    nombre_llave = f"{nombre_guardar_input.strip()} ({timestamp_lote})"
+                    
+                    # Guardamos la copia exacta en el estado global
+                    st.session_state["lotes_guardados"][nombre_llave] = df_lote.copy(deep=True)
+                    st.success(f"¡Análisis guardado exitosamente con el nombre '{nombre_llave}'! Puedes consultarlo en la pestaña '📁 Lotes Guardados'.")
+                else:
+                    st.warning("⚠️ Ingresa un nombre válido para almacenar el análisis.")
 
         st.divider()
 
-        col_g1, col_g2 = st.columns(2)
-
-        with col_g1:
-            st.markdown("##### 📍 1. Gráfico de Zonas")
-            if "ZONA" in df_lote.columns and not df_lote["ZONA"].isna().all():
-                fig_zona = px.pie(df_lote, names="ZONA", title="Distribución por Zonas", hole=0.4)
-                st.plotly_chart(fig_zona, use_container_width=True)
-            else:
-                st.info("No hay datos de zona disponibles en este lote.")
-
-        with col_g2:
-            st.markdown("##### 📅 2. Gráfico por Mes de Recepción")
-            if "RECEPCION_DT" in df_lote.columns and not df_lote["RECEPCION_DT"].isna().all():
-                df_meses_lote = df_lote.groupby(df_lote["RECEPCION_DT"].dt.to_period("M")).size().reset_index(name="CANTIDAD")
-                df_meses_lote["MES_STR"] = df_meses_lote["RECEPCION_DT"].dt.strftime("%B %Y").str.upper()
-
-                fig_mes = px.bar(
-                    df_meses_lote,
-                    x="MES_STR",
-                    y="CANTIDAD",
-                    title="Incidencias Agrupadas por Mes de Recepción",
-                    labels={"MES_STR": "Mes", "CANTIDAD": "Cantidad"},
-                    color="CANTIDAD",
-                    color_continuous_scale="Blues",
-                )
-                st.plotly_chart(fig_mes, use_container_width=True)
-            else:
-                st.info("No hay fechas válidas para este gráfico.")
-
-        col_g3, col_g4 = st.columns(2)
-
-        with col_g3:
-            st.markdown("##### 🏷️ 3. Gráfico de Motivos")
-            if "MOTIVO" in df_lote.columns:
-                fig_motivo = px.bar(
-                    df_lote["MOTIVO"].value_counts().reset_index(),
-                    x="MOTIVO",
-                    y="count",
-                    title="Incidencias por Grupo de Origen / Motivo",
-                    labels={"MOTIVO": "Motivo", "count": "Cantidad"},
-                )
-                st.plotly_chart(fig_motivo, use_container_width=True)
-
-        with col_g4:
-            st.markdown("##### 🔄 4. Gráfico por Origen")
-            if "ORIGEN_TIPO" in df_lote.columns and not df_lote["ORIGEN_TIPO"].isna().all():
-                fig_origen = px.pie(
-                    df_lote,
-                    names="ORIGEN_TIPO",
-                    title="Clasificación por Origen",
-                    hole=0.4,
-                    color="ORIGEN_TIPO",
-                    color_discrete_map={"Acumuladas": "#94a3b8", "Recibidas en el Día": "#3b82f6"}
-                )
-                st.plotly_chart(fig_origen, use_container_width=True)
-            else:
-                st.info("No se cuenta con la clasificación de origen en este lote.")
-
-        col_g5, _ = st.columns(2)
-        with col_g5:
-            st.markdown("##### 🏢 5. Gráfico por Unidad Asignada")
-            df_unidad_valida = df_lote[(df_lote["UNIDAD"].notna()) & (df_lote["UNIDAD"] != "")]
-            if not df_unidad_valida.empty:
-                fig_unidad = px.bar(
-                    df_unidad_valida["UNIDAD"].value_counts().reset_index(),
-                    x="UNIDAD",
-                    y="count",
-                    title="Carga de Incidencias por Unidad (Manual)",
-                    labels={"UNIDAD": "Unidad", "count": "Cantidad"},
-                    color="UNIDAD",
-                )
-                st.plotly_chart(fig_unidad, use_container_width=True)
-            else:
-                st.info("Asigne texto en la columna 'UNIDAD' de la tabla superior para visualizar este gráfico.")
+        # Renderizar gráficos para el lote activo
+        renderizar_panel_graficos(df_lote)
 
         st.markdown("---")
         st.subheader("📋 Detalle Completo del Lote Seleccionado")
@@ -1088,7 +1111,79 @@ with tab4:
 
 with tab5:
     # ==========================================
-    # PESTAÑA 5: CARGA Y ACTUALIZACIÓN
+    # PESTAÑA 5: LOTES GUARDADOS (INDEPENDIENTES)
+    # ==========================================
+    st.header("📁 Gestión de Análisis y Lotes Guardados")
+    st.markdown("Aquí puedes consultar los análisis que has almacenado previamente de forma totalmente independiente. Si actualizas la base de datos general, estos datos **no cambiarán** a menos que decidas reanalizarlos.")
+
+    lotes_dict = st.session_state["lotes_guardados"]
+
+    if not lotes_dict:
+        st.info("No hay lotes guardados todavía. Ve a la pestaña **🎯 Análisis**, configura o carga tu lista y haz clic en 'Almacenar y Congelar este Análisis'.")
+    else:
+        # Selector de lote guardado
+        nombres_lotes_disponibles = list(lotes_dict.keys())
+        lote_seleccionado_key = st.selectbox("Seleccione el Lote Guardado a Consultar:", nombres_lotes_disponibles, key="select_lote_guardado_activo")
+
+        if lote_seleccionado_key:
+            df_congelado = lotes_dict[lote_seleccionado_key]
+
+            col_acc1, col_acc2, _ = st.columns([2, 2, 3])
+            with col_acc1:
+                if st.button("🔄 Reanalizar / Actualizar desde Base de Datos", key=f"btn_reanalizar_{lote_seleccionado_key}", use_container_width=True):
+                    if df is not None:
+                        # Extraer la lista de incidencias que conformaban este lote
+                        lista_inc_congeladas = df_congelado["INCIDENCIA"].tolist()
+                        df_fresco = df[df["INCIDENCIA"].isin(lista_inc_congeladas)].copy()
+                        
+                        if not df_fresco.empty:
+                            # Preservar las unidades/gerencias manuales que ya tuviera guardadas si existen, o actualizar las columnas
+                            def clasificar_origen_auto(row):
+                                rec = row["RECEPCION_DT"]
+                                fin = row["FINALIZACION_DT"]
+                                if pd.isna(fin) or (not pd.isna(rec) and not pd.isna(fin) and rec.date() != fin.date()):
+                                    return "Acumuladas"
+                                else:
+                                    return "Recibidas en el Día"
+                            df_fresco["ORIGEN_TIPO"] = df_fresco.apply(clasificar_origen_auto, axis=1)
+                            
+                            # Intentar mantener la unidad manual si ya estaba en el congelado
+                            if "UNIDAD" in df_congelado.columns and "UNIDAD" in df_fresco.columns:
+                                mapeo_unidades = df_congelado.set_index("INCIDENCIA")["UNIDAD"].to_dict()
+                                df_fresco["UNIDAD"] = df_fresco["INCIDENCIA"].map(mapeo_unidades).fillna("")
+                            if "GERENCIA" in df_congelado.columns and "GERENCIA" in df_fresco.columns:
+                                mapeo_gerencias = df_congelado.set_index("INCIDENCIA")["GERENCIA"].to_dict()
+                                df_fresco["GERENCIA"] = df_fresco["INCIDENCIA"].map(mapeo_gerencias).fillna("")
+
+                            # Actualizar en el diccionario
+                            st.session_state["lotes_guardados"][lote_seleccionado_key] = df_fresco
+                            st.success("¡Lote actualizado exitosamente con los datos más recientes de la base de datos!")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ No se encontraron las incidencias de este lote en la base de datos actual.")
+                    else:
+                        st.error("No hay base de datos cargada.")
+
+            with col_acc2:
+                if st.button("🗑️ Eliminar Lote Guardado", key=f"btn_eliminar_{lote_seleccionado_key}", use_container_width=True):
+                    del st.session_state["lotes_guardados"][lote_seleccionado_key]
+                    st.success(f"El lote '{lote_seleccionado_key}' ha sido eliminado.")
+                    st.rerun()
+
+            st.divider()
+            st.info(f"Mostrando análisis congelado para: **{lote_seleccionado_key}** (Total registros: {len(df_congelado)})")
+
+            # Renderizar los gráficos del lote congelado
+            renderizar_panel_graficos(df_congelado)
+
+            st.markdown("---")
+            st.subheader("📋 Detalle del Lote Guardado")
+            st.dataframe(df_congelado, use_container_width=True)
+
+
+with tab6:
+    # ==========================================
+    # PESTAÑA 6: CARGA Y ACTUALIZACIÓN
     # ==========================================
     st.subheader("📁 Carga de Zonas y Actualización de Base de Datos")
     st.markdown("Sube aquí tus archivos `.txt` de incidencias para depurar, consolidar y unificar los datos en el sistema.")
