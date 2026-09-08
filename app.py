@@ -1184,6 +1184,7 @@ with tab6:
         st.session_state["uploader_key"] = 0
 
     archivos_cargados = st.file_uploader(
+        "Selecciona archivos .txt",
         type=["txt", "TXT"],
         accept_multiple_files=True,
         key=f"uploader_{st.session_state['uploader_key']}",
