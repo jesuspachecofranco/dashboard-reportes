@@ -1178,7 +1178,7 @@ with tab6:
     # PESTAÑA 6: CARGA Y ACTUALIZACIÓN
     # ==========================================
     st.subheader("📁 Carga de Data")
-    st.markdown("Sube aquí tus archivos `.txt` de incidencias para depurar, consolidar y unificar los datos en el sistema.")
+    st.markdown("Sube aquí tus archivos `.txt` de incidencias para actualizar el sistema.")
 
     if "uploader_key" not in st.session_state:
         st.session_state["uploader_key"] = 0
@@ -1206,11 +1206,11 @@ with tab6:
                     exito = procesar_txts_seguro(archivos_cargados)
                     if exito:
                         st.cache_data.clear()
-                        st.success("¡Actualización exitosa! Los datos han sido unificados.")
+                        st.success("¡Actualización exitosa!")
                         st.session_state["uploader_key"] += 1
                         st.rerun()
             else:
-                st.warning("⚠️ Sube al menos un archivo .txt antes de procesar.")
+                st.warning("⚠️ Sube al menos un archivo .txt")
 
     if os.path.exists("resultado_actualizacion.xlsx"):
         st.markdown("---")
