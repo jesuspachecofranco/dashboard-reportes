@@ -279,7 +279,7 @@ df = cargar_datos()
 if df is None:
     st.warning(
         "⚠️ No se encontró el archivo 'resultado_unificado.xlsx'. Ve a la"
-        " pestaña **📁 Carga y Actualización** para subir tus archivos .txt"
+        " pestaña **📁 Actualización** para subir tus archivos .txt"
         " iniciales."
     )
 
@@ -301,8 +301,8 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📈 Seguimiento Anual",
     "🔍 Búsqueda Avanzada",
     "🎯 Análisis",
-    "📁 Lotes Guardados",
-    "📁 Carga y Actualización",
+    "📄 Reportes",
+    "📦 Actualización",
 ])
 
 
@@ -868,7 +868,7 @@ with tab2:
 
 with tab3:
     st.subheader(
-        "🔍 Buscador Avanzado de Incidencias (Fecha, Número y Dirección)"
+        "🔍 Buscador de Incidencias"
     )
     if df is not None:
         col_f1, col_f2, col_f3 = st.columns(3)
@@ -984,10 +984,10 @@ with tab4:
     # ==========================================
     # PESTAÑA 4: ANÁLISIS
     # ==========================================
-    st.header("🎯 Panel de Análisis por Lista de Incidencias")
+    st.header("🎯 Panel de Análisis")
     
     if df is not None:
-        st.markdown("### 📝 Ingreso de Lote por Texto")
+        st.markdown("### 📝 Ingreso de Incidencias por Texto")
         texto_lista = st.text_area(
             "Escribe o pega los números de incidencias separados por comas:",
             placeholder="Ej. 12345, 67890, 11223, 44556",
@@ -996,9 +996,9 @@ with tab4:
         
         col_btn_lote1, col_btn_lote2 = st.columns(2)
         with col_btn_lote1:
-            btn_cargar = st.button("🚀 Cargar Lote para Análisis", type="primary", use_container_width=True)
+            btn_cargar = st.button("🚀 Analizar", type="primary", use_container_width=True)
         with col_btn_lote2:
-            btn_limpiar = st.button("🗑️ Limpiar Lote Actual", use_container_width=True)
+            btn_limpiar = st.button("🗑️ Limpiar", use_container_width=True)
 
         if btn_limpiar:
             st.session_state["lote_seleccionado"] = pd.DataFrame()
@@ -1073,7 +1073,7 @@ with tab4:
 
         col_save1, col_save2 = st.columns([2, 2])
         with col_save1:
-            if st.button("💾 Guardar Asignación Manual y Actualizar Gráficos", key="btn_guardar_manual", use_container_width=True):
+            if st.button("💾 Guardar", key="btn_guardar_manual", use_container_width=True):
                 for idx, row in df_editado_manual.iterrows():
                     inc_id = row["INCIDENCIA"]
                     mask = df_lote["INCIDENCIA"] == inc_id
@@ -1086,13 +1086,13 @@ with tab4:
 
         with col_save2:
             nombre_guardar_input = st.text_input("Nombre para guardar este lote:", placeholder="Ej. Análisis Operativo Semana 1", key="input_nombre_lote_guardado")
-            if st.button("📥 Almacenar y Congelar este Análisis", key="btn_almacenar_lote", type="primary", use_container_width=True):
+            if st.button("📥 Guardar Reporte", key="btn_almacenar_lote", type="primary", use_container_width=True):
                 if nombre_guardar_input.strip():
                     timestamp_lote = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                     nombre_llave = f"{nombre_guardar_input.strip()} ({timestamp_lote})"
                     
                     st.session_state["lotes_guardados"][nombre_llave] = df_lote.copy(deep=True)
-                    st.success(f"¡Análisis guardado exitosamente con el nombre '{nombre_llave}'! Puedes consultarlo en la pestaña '📁 Lotes Guardados'.")
+                    st.success(f"¡Análisis guardado exitosamente con el nombre '{nombre_llave}'! Puedes consultarlo en la pestaña '📄 Reportes'.")
                 else:
                     st.warning("⚠️ Ingresa un nombre válido para almacenar el análisis.")
 
@@ -1102,15 +1102,15 @@ with tab4:
         renderizar_panel_graficos(df_lote, sufijo="activo")
 
         st.markdown("---")
-        st.subheader("📋 Detalle Completo del Lote Seleccionado")
+        st.subheader("📋 Detalle Completo del Reporte")
         st.dataframe(df_lote, use_container_width=True)
 
 
 with tab5:
     # ==========================================
-    # PESTAÑA 5: LOTES GUARDADOS (INDEPENDIENTES)
+    # PESTAÑA 5: REPORTES (INDEPENDIENTES)
     # ==========================================
-    st.header("📁 Gestión de Análisis y Lotes Guardados")
+    st.header("📁 Gestión de Análisis y Reportes")
     st.markdown("Aquí puedes consultar los análisis que has almacenado previamente de forma totalmente independiente. Si actualizas la base de datos general, estos datos **no cambiarán** a menos que decidas reanalizarlos.")
 
     lotes_dict = st.session_state["lotes_guardados"]
@@ -1126,7 +1126,7 @@ with tab5:
 
             col_acc1, col_acc2, _ = st.columns([2, 2, 3])
             with col_acc1:
-                if st.button("🔄 Reanalizar / Actualizar desde Base de Datos", key=f"btn_reanalizar_{lote_seleccionado_key}", use_container_width=True):
+                if st.button("🔄 Reanalizar", key=f"btn_reanalizar_{lote_seleccionado_key}", use_container_width=True):
                     if df is not None:
                         lista_inc_congeladas = df_congelado["INCIDENCIA"].tolist()
                         df_fresco = df[df["INCIDENCIA"].isin(lista_inc_congeladas)].copy()
@@ -1157,7 +1157,7 @@ with tab5:
                         st.error("No hay base de datos cargada.")
 
             with col_acc2:
-                if st.button("🗑️ Eliminar Lote Guardado", key=f"btn_eliminar_{lote_seleccionado_key}", use_container_width=True):
+                if st.button("🗑️ Eliminar Reporte", key=f"btn_eliminar_{lote_seleccionado_key}", use_container_width=True):
                     del st.session_state["lotes_guardados"][lote_seleccionado_key]
                     st.success(f"El lote '{lote_seleccionado_key}' ha sido eliminado.")
                     st.rerun()
@@ -1177,7 +1177,7 @@ with tab6:
     # ==========================================
     # PESTAÑA 6: CARGA Y ACTUALIZACIÓN
     # ==========================================
-    st.subheader("📁 Carga de Zonas y Actualización de Base de Datos")
+    st.subheader("📁 Carga de Data")
     st.markdown("Sube aquí tus archivos `.txt` de incidencias para depurar, consolidar y unificar los datos en el sistema.")
 
     if "uploader_key" not in st.session_state:
@@ -1196,7 +1196,7 @@ with tab6:
     col_c1, col_c2 = st.columns([2, 2])
     with col_c1:
         if st.button(
-            "🚀 Depurar y Actualizar Base de Datos",
+            "🚀 Actualizar Base de Datos",
             key="btn_ejecutar_txt_main",
             use_container_width=True,
             type="primary"
@@ -1217,7 +1217,7 @@ with tab6:
         st.markdown("##### 📥 Descargar Resultados")
         with open("resultado_actualizacion.xlsx", "rb") as f:
             st.download_button(
-                "📥 Descargar Archivo de Actualización (Excel)",
+                "📥 Descargar Archivo de Actualización",
                 f,
                 file_name="resultado_actualizacion.xlsx",
                 use_container_width=True,
