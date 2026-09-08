@@ -900,15 +900,8 @@ with tab3:
 
 with tab4:
     # ==========================================
-    # PESTAÑA 4: ANÁLISIS (ACTUALIZADO CON LISTA POR COMAS)
+    # PESTAÑA 4: ANÁLISIS
     # ==========================================
-    col_ba1, _ = st.columns([1, 4])
-    with col_ba1:
-        if st.button("🗑️ Limpiar Lote Actual", use_container_width=True):
-            st.session_state["lote_seleccionado"] = pd.DataFrame()
-            st.success("¡Lote limpiado!")
-            st.rerun()
-
     st.header("🎯 Panel de Análisis por Lista de Incidencias")
     
     if df is not None:
@@ -919,7 +912,19 @@ with tab4:
             key="input_texto_lote"
         )
         
-        if st.button("🚀 Cargar Lote para Análisis", type="primary"):
+        # Botones de Cargar y Limpiar ubicados juntos debajo del cuadro de texto
+        col_btn_lote1, col_btn_lote2 = st.columns(2)
+        with col_btn_lote1:
+            btn_cargar = st.button("🚀 Cargar Lote para Análisis", type="primary", use_container_width=True)
+        with col_btn_lote2:
+            btn_limpiar = st.button("🗑️ Limpiar Lote Actual", use_container_width=True)
+
+        if btn_limpiar:
+            st.session_state["lote_seleccionado"] = pd.DataFrame()
+            st.success("¡Lote limpiado!")
+            st.rerun()
+        
+        if btn_cargar:
             if texto_lista.strip():
                 # Procesar la cadena separada por comas
                 lista_ids = [x.strip().upper() for x in texto_lista.split(",") if x.strip()]
@@ -929,13 +934,21 @@ with tab4:
                 df_encontrados = df[df["INCIDENCIA"].isin(lista_ids)].copy()
                 
                 if not df_encontrados.empty:
-                    df_encontrados["ORIGEN_TIPO"] = "Recibidas en el Día"
+                    # Clasificación automática de origen (si se resolvió en días distintos o sigue pendiente -> Acumuladas)
+                    def clasificar_origen_auto(row):
+                        rec = row["RECEPCION_DT"]
+                        fin = row["FINALIZACION_DT"]
+                        if pd.isna(fin) or (not pd.isna(rec) and not pd.isna(fin) and rec.date() != fin.date()):
+                            return "Acumuladas"
+                        else:
+                            return "Recibidas en el Día"
+
+                    df_encontrados["ORIGEN_TIPO"] = df_encontrados.apply(clasificar_origen_auto, axis=1)
                     if "UNIDAD" not in df_encontrados.columns: df_encontrados["UNIDAD"] = ""
                     if "GERENCIA" not in df_encontrados.columns: df_encontrados["GERENCIA"] = ""
                     
                     st.session_state["lote_seleccionado"] = df_encontrados
                     
-                    # Detectar si faltaron algunas por ubicar
                     ids_encontrados_set = set(df_encontrados["INCIDENCIA"].tolist())
                     ids_faltantes = [i for i in lista_ids if i not in ids_encontrados_set]
                     
