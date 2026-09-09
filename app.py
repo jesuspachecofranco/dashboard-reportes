@@ -1122,7 +1122,7 @@ with tab4:
         
         # Mapear la selección al nombre real de la columna en tu DataFrame
         # (Ajusta los nombres de columnas según cómo los tengas en tu base/df)
-        columna_grupo = "cliente" if criterio == "CLIENTE" else "DIRECCIÓN"
+        columna_grupo = "CLIENTE" if criterio == "CLIENTE" else "DIRECCIÓN"
         
         if columna_grupo in df.columns:
             # 2. Contar cuántas incidencias hay por cada cliente/dirección
