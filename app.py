@@ -1117,7 +1117,7 @@ with tab4:
         # 1. Selector para elegir el criterio de agrupación
         criterio = st.selectbox(
             "Agrupar incidencias repetidas por:",
-            ["Cliente", "Dirección"]
+            ["CLIENTE", "DIRECCIÓN"]
         )
         
         # Mapear la selección al nombre real de la columna en tu DataFrame
