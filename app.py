@@ -1105,69 +1105,69 @@ with tab4:
         st.subheader("📋 Detalle Completo del Reporte")
         st.dataframe(df_lote, use_container_width=True)
 
-        # ==========================================
-        # REPORTE DE INCIDENCIAS REPETIDAS (CLIENTE / DIRECCIÓN)
-        # ==========================================
-        st.markdown("### 🔍 Análisis de Incidencias Repetidas")
-        st.markdown(
-            "Identifica rápidamente clientes o direcciones con múltiples reportes para analizar sus motivos, fechas y estatus."
+    # ==========================================
+    # REPORTE DE INCIDENCIAS REPETIDAS (CLIENTE / DIRECCIÓN)
+    # ==========================================
+    st.markdown("### 🔍 Análisis de Incidencias Repetidas")
+    st.markdown(
+        "Identifica rápidamente clientes o direcciones con múltiples reportes para analizar sus motivos, fechas y estatus."
+    )
+    
+    if "df" in locals() and not df.empty:
+        # 1. Selector para elegir el criterio de agrupación
+        criterio = st.selectbox(
+            "Agrupar incidencias repetidas por:",
+            ["Cliente", "Dirección"]
         )
         
-        if "df" in locals() and not df.empty:
-            # 1. Selector para elegir el criterio de agrupación
-            criterio = st.selectbox(
-                "Agrupar incidencias repetidas por:",
-                ["Cliente", "Dirección"]
-            )
+        # Mapear la selección al nombre real de la columna en tu DataFrame
+        # (Ajusta los nombres de columnas según cómo los tengas en tu base/df)
+        columna_grupo = "cliente" if criterio == "Cliente" else "direccion"
+        
+        if columna_grupo in df.columns:
+            # 2. Contar cuántas incidencias hay por cada cliente/dirección
+            conteo = df[columna_grupo].value_counts().reset_index()
+            conteo.columns = [columna_grupo, "total_repeticiones"]
             
-            # Mapear la selección al nombre real de la columna en tu DataFrame
-            # (Ajusta los nombres de columnas según cómo los tengas en tu base/df)
-            columna_grupo = "cliente" if criterio == "Cliente" else "direccion"
+            # Filtrar solo los que tienen más de 1 incidencia (repetidos)
+            repetidos = conteo[conteo["total_repeticiones"] > 1]
             
-            if columna_grupo in df.columns:
-                # 2. Contar cuántas incidencias hay por cada cliente/dirección
-                conteo = df[columna_grupo].value_counts().reset_index()
-                conteo.columns = [columna_grupo, "total_repeticiones"]
+            if not repetidos.empty:
+                st.warning(f"Se encontraron **{len(repetidos)}** {criterio.lower()}s con más de una incidencia.")
                 
-                # Filtrar solo los que tienen más de 1 incidencia (repetidos)
-                repetidos = conteo[conteo["total_repeticiones"] > 1]
+                # Mostrar una tabla resumen general
+                st.dataframe(repetidos, use_container_width=True)
                 
-                if not repetidos.empty:
-                    st.warning(f"Se encontraron **{len(repetidos)}** {criterio.lower()}s con más de una incidencia.")
+                st.markdown("#### 📂 Detalle por cada " + criterio)
+                
+                # 3. Mostrar un expander interactivo para cada grupo repetido
+                for index, row in repetidos.iterrows():
+                    valor_grupo = row[columna_grupo]
+                    total = row["total_repeticiones"]
                     
-                    # Mostrar una tabla resumen general
-                    st.dataframe(repetidos, use_container_width=True)
-                    
-                    st.markdown("#### 📂 Detalle por cada " + criterio)
-                    
-                    # 3. Mostrar un expander interactivo para cada grupo repetido
-                    for index, row in repetidos.iterrows():
-                        valor_grupo = row[columna_grupo]
-                        total = row["total_repeticiones"]
+                    with st.expander(f"📌 {criterio}: {valor_grupo} ({total} incidencias)"):
+                        # Filtrar el DataFrame original para este grupo específico
+                        detalle_grupo = df[df[columna_grupo] == valor_grupo]
                         
-                        with st.expander(f"📌 {criterio}: {valor_grupo} ({total} incidencias)"):
-                            # Filtrar el DataFrame original para este grupo específico
-                            detalle_grupo = df[df[columna_grupo] == valor_grupo]
-                            
-                            # Seleccionar las columnas clave que quieres ver en el detalle
-                            columnas_mostrar = [
-                                c for c in [
-                                    "recepcion", "motivo", "estado", "zona", 
-                                    "tec", "tcr", "origen_tipo"
-                                ] if c in df.columns
-                            ]
-                            
-                            # Mostrar la tablita con los detalles
-                            st.dataframe(
-                                detalle_grupo[columnas_mostrar], 
-                                use_container_width=True
-                            )
-                else:
-                    st.success(f"¡Excelente! No se encontraron {criterio.lower()}s con incidencias repetidas.")
+                        # Seleccionar las columnas clave que quieres ver en el detalle
+                        columnas_mostrar = [
+                            c for c in [
+                                "recepcion", "motivo", "estado", "zona", 
+                                "tec", "tcr", "origen_tipo"
+                            ] if c in df.columns
+                        ]
+                        
+                        # Mostrar la tablita con los detalles
+                        st.dataframe(
+                            detalle_grupo[columnas_mostrar], 
+                            use_container_width=True
+                        )
             else:
-                st.error(f"La columna '{columna_grupo}' no se encuentra en los datos cargados.")
+                st.success(f"¡Excelente! No se encontraron {criterio.lower()}s con incidencias repetidas.")
         else:
-            st.info("Por favor, carga o sincroniza los datos primero para visualizar este reporte.")
+            st.error(f"La columna '{columna_grupo}' no se encuentra en los datos cargados.")
+    else:
+        st.info("Por favor, carga o sincroniza los datos primero para visualizar este reporte.")
 
 
 with tab5:
