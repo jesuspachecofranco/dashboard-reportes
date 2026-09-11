@@ -949,275 +949,114 @@ with tab3:
         m3.metric("📊 Total Activos", f"{total_activos_dia:,}")
         m4.metric("✅ Finalizados", f"{total_finalizados_dia:,}")
         m5.metric("⏳ Pendientes", f"{pendientes_dia_busqueda:,}")
-        m6.metric("🎯 Efectividad", f"{efectividad_dia_busqueda:.1f}%")
-        st.markdown("---")
+        m6.metric("🎯 Efectividad Día", f"{efectividad_dia_busqueda:.1f}%")
+        st.divider()
 
-        with st.expander(
-            f"📦 1. Incidencias Acumuladas Pendientes"
-            f" ({len(df_acumulados_dia)} registros)",
-            expanded=True,
-        ):
-            renderizar_tabla_con_seleccion(
-                df_acumulados_dia, "busqueda_acumulados", "Acumuladas"
-            )
+        st.markdown("##### 📦 Incidencias Acumuladas Previas Activas")
+        renderizar_tabla_con_seleccion(df_acumulados_dia, "buscador_acumulados", "Acumuladas")
 
-        with st.expander(
-            f"📥 2. Incidencias Recibidas ({len(df_recibidos_dia)}"
-            " registros)"
-        ):
-            renderizar_tabla_con_seleccion(
-                df_recibidos_dia, "busqueda_recibidos", "Recibidas en el Día"
-            )
+        st.markdown("##### 📥 Incidencias Recibidas en el Día")
+        renderizar_tabla_con_seleccion(df_recibidos_dia, "buscador_recibidos", "Recibidas en el Día")
 
-        with st.expander(
-            f"✅ 3. Incidencias Finalizadas / Atendidas"
-            f" ({len(df_finalizados_dia)} registros)"
-        ):
-            renderizar_tabla_con_seleccion(
-                df_finalizados_dia, "busqueda_finalizados", None
-            )
+        st.markdown("##### ✅ Incidencias Finalizadas en el Día")
+        renderizar_tabla_con_seleccion(df_finalizados_dia, "buscador_finalizados", "Finalizados en el Día")
     else:
         st.info("No hay datos cargados todavía.")
 
 
 with tab4:
-    # ==========================================
-    # PESTAÑA 4: ANÁLISIS
-    # ==========================================
-    st.header("🎯 Panel de Análisis")
-    
-    if df is not None:
-        st.markdown("### 📝 Ingreso de Incidencias por Texto")
-        texto_lista = st.text_area(
-            "Escribe o pega los números de incidencias separados por comas:",
-            placeholder="Ej. 12345, 67890, 11223, 44556",
-            key="input_texto_lote"
-        )
-        
-        col_btn_lote1, col_btn_lote2 = st.columns(2)
-        with col_btn_lote1:
-            btn_cargar = st.button("🚀 Analizar", type="primary", use_container_width=True)
-        with col_btn_lote2:
-            btn_limpiar = st.button("🗑️ Limpiar", use_container_width=True)
+    st.subheader("🎯 Análisis y Gestión del Lote Seleccionado")
+    if not st.session_state["lote_seleccionado"].empty:
+        df_lote = st.session_state["lote_seleccionado"]
+        st.write(f"Total de incidencias en el lote actual: **{len(df_lote)}**")
 
-        if btn_limpiar:
-            st.session_state["lote_seleccionado"] = pd.DataFrame()
-            st.success("¡Lote limpiado!")
-            st.rerun()
-        
-        if btn_cargar:
-            if texto_lista.strip():
-                lista_ids = [x.strip().upper() for x in texto_lista.split(",") if x.strip()]
-                lista_ids = [x.replace(".0", "") for x in lista_ids]
-                
-                df_encontrados = df[df["INCIDENCIA"].isin(lista_ids)].copy()
-                
-                if not df_encontrados.empty:
-                    def clasificar_origen_auto(row):
-                        rec = row["RECEPCION_DT"]
-                        fin = row["FINALIZACION_DT"]
-                        if pd.isna(fin) or (not pd.isna(rec) and not pd.isna(fin) and rec.date() != fin.date()):
-                            return "Acumuladas"
-                        else:
-                            return "Recibidas en el Día"
-
-                    df_encontrados["ORIGEN_TIPO"] = df_encontrados.apply(clasificar_origen_auto, axis=1)
-                    if "UNIDAD" not in df_encontrados.columns: df_encontrados["UNIDAD"] = ""
-                    if "GERENCIA" not in df_encontrados.columns: df_encontrados["GERENCIA"] = ""
-                    
-                    st.session_state["lote_seleccionado"] = df_encontrados
-                    
-                    ids_encontrados_set = set(df_encontrados["INCIDENCIA"].tolist())
-                    ids_faltantes = [i for i in lista_ids if i not in ids_encontrados_set]
-                    
-                    st.success(f"¡Lote cargado con éxito! Se encontraron {len(df_encontrados)} de {len(lista_ids)} incidencias.")
-                    if ids_faltantes:
-                        st.warning(f"⚠️ Las siguientes incidencias no se encontraron en la base de datos: {', '.join(ids_faltantes)}")
-                    st.rerun()
-                else:
-                    st.error("❌ No se encontró ninguna de las incidencias ingresadas en la base de datos.")
-            else:
-                st.warning("⚠️ Por favor, ingresa al menos un número de incidencia.")
-        
-        st.divider()
-
-    df_lote = st.session_state["lote_seleccionado"]
-
-    if df_lote.empty:
-        st.info("No hay incidencias cargadas en el lote de análisis. Ingresa una lista de números en el cuadro de texto superior o selecciónalos desde las otras pestañas.")
-    else:
-        st.info(f"Mostrando análisis para el lote actual de **{len(df_lote)}** incidencias.")
-
+        st.markdown("#### 📝 Edición y Clasificación del Lote")
         if "UNIDAD" not in df_lote.columns:
             df_lote["UNIDAD"] = ""
         if "GERENCIA" not in df_lote.columns:
             df_lote["GERENCIA"] = ""
 
-        st.subheader("✍️ Asignación Manual de Unidad y Gerencia por Incidencia")
-        st.markdown("💡 *Haz doble clic en las columnas **UNIDAD** o **GERENCIA** de la tabla inferior para editar.*")
-
-        cols_edicion = ["INCIDENCIA", "MOTIVO", "ESTADO", "UNIDAD", "GERENCIA"]
-        for c in cols_edicion:
-            if c not in df_lote.columns:
-                df_lote[c] = ""
-
-        df_para_editar = df_lote[cols_edicion].copy()
-
-        df_editado_manual = st.data_editor(
-            df_para_editar,
+        columnas_analisis = ["INCIDENCIA", "RECEPCIÓN", "FINALIZACIÓN", "DIRECCIÓN", "CLIENTE", "MOTIVO", "ESTADO", "UNIDAD", "GERENCIA"]
+        
+        df_lote_editado = st.data_editor(
+            df_lote[columnas_analisis],
             use_container_width=True,
-            key="editor_manual_unidades",
-            hide_index=True,
-            disabled=["INCIDENCIA", "MOTIVO", "ESTADO"],
+            key="editor_lote_analisis",
+            hide_index=True
         )
 
-        col_save1, col_save2 = st.columns([2, 2])
-        with col_save1:
-            if st.button("💾 Guardar", key="btn_guardar_manual", use_container_width=True):
-                for idx, row in df_editado_manual.iterrows():
-                    inc_id = row["INCIDENCIA"]
-                    mask = df_lote["INCIDENCIA"] == inc_id
-                    df_lote.loc[mask, "UNIDAD"] = str(row["UNIDAD"]).strip().upper()
-                    df_lote.loc[mask, "GERENCIA"] = str(row["GERENCIA"]).strip().upper()
-
-                st.session_state["lote_seleccionado"] = df_lote
-                st.success("¡Asignaciones guardadas y gráficos actualizados!")
-                st.rerun()
-
-        with col_save2:
-            nombre_guardar_input = st.text_input("Nombre para guardar este lote:", placeholder="Ej. Análisis Operativo Semana 1", key="input_nombre_lote_guardado")
-            if st.button("📥 Guardar Reporte", key="btn_almacenar_lote", type="primary", use_container_width=True):
-                if nombre_guardar_input.strip():
-                    timestamp_lote = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                    nombre_llave = f"{nombre_guardar_input.strip()} ({timestamp_lote})"
-                    
-                    st.session_state["lotes_guardados"][nombre_llave] = df_lote.copy(deep=True)
-                    st.success(f"¡Análisis guardado exitosamente con el nombre '{nombre_llave}'! Puedes consultarlo en la pestaña '📄 Reportes'.")
-                else:
-                    st.warning("⚠️ Ingresa un nombre válido para almacenar el análisis.")
-
-        st.divider()
-
-        # Renderizar gráficos para el lote activo con sufijo único
-        renderizar_panel_graficos(df_lote, sufijo="activo")
+        if st.button("💾 Guardar Cambios del Lote"):
+            st.session_state["lote_seleccionado"].update(df_lote_editado)
+            st.success("¡Cambios guardados exitosamente en el lote!")
 
         st.markdown("---")
-        st.subheader("📋 Detalle Completo del Reporte")
-        st.dataframe(df_lote, use_container_width=True)
+        st.markdown("#### 📊 Panel de Gráficos del Lote Actual")
+        renderizar_panel_graficos(st.session_state["lote_seleccionado"], sufijo="lote_actual")
+
+        col_acc1, col_acc2 = st.columns(2)
+        with col_acc1:
+            nombre_guardar = st.text_input("Nombre para guardar este lote:")
+            if st.button("📥 Guardar Lote en Memoria"):
+                if nombre_guardar.strip():
+                    st.session_state["lotes_guardados"][nombre_guardar] = st.session_state["lote_seleccionado"].copy()
+                    st.success(f"Lote '{nombre_guardar}' guardado correctamente.")
+                else:
+                    st.warning("⚠️ Escribe un nombre válido para guardar el lote.")
+        with col_acc2:
+            if st.button("🗑️ Vaciar Lote Actual"):
+                st.session_state["lote_seleccionado"] = pd.DataFrame()
+                st.rerun()
+
+        if st.session_state["lotes_guardados"]:
+            st.markdown("---")
+            st.markdown("#### 📂 Lotes Guardados Previamente")
+            lote_a_cargar = st.selectbox("Selecciona un lote guardado para visualizar:", list(st.session_state["lotes_guardados"].keys()))
+            if st.button("🔄 Cargar Lote Guardado"):
+                st.session_state["lote_seleccionado"] = st.session_state["lotes_guardados"][lote_a_cargar].copy()
+                st.success(f"Lote '{lote_a_cargar}' cargado con éxito.")
+                st.rerun()
+    else:
+        st.info("No hay incidencias agregadas al lote de análisis. Selecciona registros desde las pestañas de Seguimiento o Búsqueda.")
+
 
 with tab5:
-    # ==========================================
-    # PESTAÑA 5: REPORTES (INDEPENDIENTES)
-    # ==========================================
-    st.header("📁 Gestión de Análisis y Reportes")
-    st.markdown("Aquí puedes consultar los análisis que has almacenado previamente de forma totalmente independiente. Si actualizas la base de datos general, estos datos **no cambiarán** a menos que decidas reanalizarlos.")
+    st.subheader("📄 Generación de Reportes en Excel")
+    if not st.session_state["lote_seleccionado"].empty:
+        st.write(f"Puedes exportar el lote actual ({len(st.session_state['lote_seleccionado'])} registros) a un archivo Excel formateado.")
+        
+        if st.button("📥 Generar y Descargar Reporte Excel"):
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                st.session_state["lote_seleccionado"].to_excel(writer, index=False, sheet_name="Reporte Lote")
+            processed_data = output.getvalue()
 
-    lotes_dict = st.session_state["lotes_guardados"]
-
-    if not lotes_dict:
-        st.info("No hay lotes guardados todavía. Ve a la pestaña **🎯 Análisis**, configura o carga tu lista y haz clic en 'Almacenar y Congelar este Análisis'.")
+            st.download_button(
+                label="⬇️ Descargar Archivo Excel",
+                data=processed_data,
+                file_name=f"reporte_incidencias_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
     else:
-        nombres_lotes_disponibles = list(lotes_dict.keys())
-        lote_seleccionado_key = st.selectbox("Seleccione el Lote Guardado a Consultar:", nombres_lotes_disponibles, key="select_lote_guardado_activo")
-
-        if lote_seleccionado_key:
-            df_congelado = lotes_dict[lote_seleccionado_key]
-
-            col_acc1, col_acc2, _ = st.columns([2, 2, 3])
-            with col_acc1:
-                if st.button("🔄 Reanalizar", key=f"btn_reanalizar_{lote_seleccionado_key}", use_container_width=True):
-                    if df is not None:
-                        lista_inc_congeladas = df_congelado["INCIDENCIA"].tolist()
-                        df_fresco = df[df["INCIDENCIA"].isin(lista_inc_congeladas)].copy()
-                        
-                        if not df_fresco.empty:
-                            def clasificar_origen_auto(row):
-                                rec = row["RECEPCION_DT"]
-                                fin = row["FINALIZACION_DT"]
-                                if pd.isna(fin) or (not pd.isna(rec) and not pd.isna(fin) and rec.date() != fin.date()):
-                                    return "Acumuladas"
-                                else:
-                                    return "Recibidas en el Día"
-                            df_fresco["ORIGEN_TIPO"] = df_fresco.apply(clasificar_origen_auto, axis=1)
-                            
-                            if "UNIDAD" in df_congelado.columns and "UNIDAD" in df_fresco.columns:
-                                mapeo_unidades = df_congelado.set_index("INCIDENCIA")["UNIDAD"].to_dict()
-                                df_fresco["UNIDAD"] = df_fresco["INCIDENCIA"].map(mapeo_unidades).fillna("")
-                            if "GERENCIA" in df_congelado.columns and "GERENCIA" in df_fresco.columns:
-                                mapeo_gerencias = df_congelado.set_index("INCIDENCIA")["GERENCIA"].to_dict()
-                                df_fresco["GERENCIA"] = df_fresco["INCIDENCIA"].map(mapeo_gerencias).fillna("")
-
-                            st.session_state["lotes_guardados"][lote_seleccionado_key] = df_fresco
-                            st.success("¡Lote actualizado exitosamente con los datos más recientes de la base de datos!")
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ No se encontraron las incidencias de este lote en la base de datos actual.")
-                    else:
-                        st.error("No hay base de datos cargada.")
-
-            with col_acc2:
-                if st.button("🗑️ Eliminar Reporte", key=f"btn_eliminar_{lote_seleccionado_key}", use_container_width=True):
-                    del st.session_state["lotes_guardados"][lote_seleccionado_key]
-                    st.success(f"El lote '{lote_seleccionado_key}' ha sido eliminado.")
-                    st.rerun()
-
-            st.divider()
-            st.info(f"Mostrando análisis congelado para: **{lote_seleccionado_key}** (Total registros: {len(df_congelado)})")
-
-            # Renderizar los gráficos del lote congelado con sufijo único diferente
-            renderizar_panel_graficos(df_congelado, sufijo="guardado")
-
-            st.markdown("---")
-            st.subheader("📋 Detalle del Lote Guardado")
-            st.dataframe(df_congelado, use_container_width=True)
+        st.info("El lote de análisis está vacío. Agrega incidencias para poder exportar un reporte.")
 
 
 with tab6:
-    # ==========================================
-    # PESTAÑA 6: CARGA Y ACTUALIZACIÓN
-    # ==========================================
-    st.subheader("📁 Carga de Data")
-    st.markdown("Sube aquí tus archivos `.txt` de incidencias para actualizar el sistema.")
+    st.subheader("📦 Actualización de Datos (.txt)")
+    st.markdown("Sube tus archivos de texto (`.txt`) diarios o semanales para unificarlos automáticamente.")
 
-    if "uploader_key" not in st.session_state:
-        st.session_state["uploader_key"] = 0
-
-    archivos_cargados = st.file_uploader(
-        "Selecciona archivos .txt",
-        type=["txt", "TXT"],
-        accept_multiple_files=True,
-        key=f"uploader_{st.session_state['uploader_key']}",
+    archivos_txt = st.file_uploader(
+        "Selecciona los archivos .txt de zonas:",
+        type=["txt"],
+        accept_multiple_files=True
     )
 
-    if archivos_cargados:
-        st.info(f"✓ {len(archivos_cargados)} archivo(s) seleccionados.")
-
-    col_c1, col_c2 = st.columns([2, 2])
-    with col_c1:
-        if st.button(
-            "🚀 Actualizar Base de Datos",
-            key="btn_ejecutar_txt_main",
-            use_container_width=True,
-            type="primary"
-        ):
-            if archivos_cargados:
-                with st.spinner("Procesando archivos y consolidando..."):
-                    exito = procesar_txts_seguro(archivos_cargados)
-                    if exito:
-                        st.cache_data.clear()
-                        st.success("¡Actualización exitosa!")
-                        st.session_state["uploader_key"] += 1
-                        st.rerun()
-            else:
-                st.warning("⚠️ Sube al menos un archivo .txt")
-
-    if os.path.exists("resultado_actualizacion.xlsx"):
-        st.markdown("---")
-        st.markdown("##### 📥 Descargar Resultados")
-        with open("resultado_actualizacion.xlsx", "rb") as f:
-            st.download_button(
-                "📥 Descargar Archivo de Actualización",
-                f,
-                file_name="resultado_actualizacion.xlsx",
-                use_container_width=True,
-            )
+    if archivos_txt:
+        if st.button("🚀 Procesar y Consolidar Archivos"):
+            with st.spinner("Procesando y unificando archivos..."):
+                exito = procesar_txts_seguro(archivos_txt)
+                if exito:
+                    st.success("¡Archivos procesados y unificados correctamente!")
+                    st.cache_data.clear()
+                    st.rerun()
+                else:
+                    st.error("Hubo un error al procesar los archivos. Revisa el formato.")
