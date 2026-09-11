@@ -752,6 +752,7 @@ with tab2:
                     & (df["RECEPCION_DT"] < fin_mes)
                 ).sum()
             )
+            # CORRECCIÓN EXACTA APLICADA AQUÍ:
             cant_acumulada = int(
                 (
                     (df["RECEPCION_DT"] < inicio_mes)
