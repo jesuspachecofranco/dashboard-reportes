@@ -270,12 +270,12 @@ with tab1:
             inicio_dia = dia
             fin_dia = dia + pd.Timedelta(days=1)
             
-            # VALIDACIÓN: Si el día excede la última fecha con datos reales, fijar en 0
+            # VALIDACIÓN: Si el día excede la última fecha con datos reales, dejamos como None/NaN para cortar la línea y evitar acumulación falsa
             if pd.notna(fecha_maxima_datos) and inicio_dia > fecha_maxima_datos:
-                cant_recibidos = 0
-                cant_acumulada = 0
-                total_rep = 0
-                cant_finalizados = 0
+                cant_recibidos = None
+                cant_acumulada = None
+                total_rep = None
+                cant_finalizados = None
                 efectividad_dia = 0.0
             else:
                 cant_recibidos = int(((df["RECEPCION_DT"] >= inicio_dia) & (df["RECEPCION_DT"] < fin_dia)).sum())
@@ -294,7 +294,10 @@ with tab1:
             })
 
         df_dia = pd.DataFrame(datos_diarios)
-        efectividad_promedio_mes = df_dia[df_dia["TOTAL REPORTES"] > 0]["EFECTIVIDAD (%)"].mean() if not df_dia.empty else 0.0
+        
+        # Filtrar ceros/nulos para el cálculo promedio de efectividad
+        efectividad_validos = df_dia[df_dia["TOTAL REPORTES"].notna() & (df_dia["TOTAL REPORTES"] > 0)]["EFECTIVIDAD (%)"]
+        efectividad_promedio_mes = efectividad_validos.mean() if not efectividad_validos.empty else 0.0
 
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
@@ -305,13 +308,14 @@ with tab1:
         c6.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
         st.divider()
 
-        # GRÁFICO DIARIO CON ETIQUETAS Y LÍNEA DE FINALIZADOS
+        # GRÁFICO DIARIO CON ETIQUETAS Y LÍNEA DE FINALIZADOS (CORTADA EN DIAS FUTUROS)
         fig1 = go.Figure()
         fig1.add_trace(go.Bar(
             x=df_dia["FECHA"], y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             name="Acumulados al Iniciar", marker_color="#d8e4fc",
             text=df_dia["REPORTES ACUMULADOS AL INICIAR"], textposition="inside",
-            textfont=dict(color="black", size=11)
+            textfont=dict(color="black", size=11),
+            connectgaps=False
         ))
         fig1.add_trace(go.Bar(
             x=df_dia["FECHA"], y=df_dia["REPORTES RECIBIDOS"],
@@ -324,14 +328,16 @@ with tab1:
             name="Total Reportes", mode="text+markers",
             text=df_dia["TOTAL REPORTES"], textposition="top center",
             textfont=dict(color="#1F4E78", size=12),
-            marker=dict(size=8, color="rgba(0,0,0,0)"), showlegend=False
+            marker=dict(size=8, color="rgba(0,0,0,0)"), showlegend=False,
+            connectgaps=False
         ))
         fig1.add_trace(go.Scatter(
             x=df_dia["FECHA"], y=df_dia["REPORTES FINALIZADOS"],
             name="Reportes Finalizados", mode="lines+markers+text",
             text=df_dia["REPORTES FINALIZADOS"], textposition="bottom center",
             textfont=dict(color="#1d4ed8", size=11),
-            marker=dict(size=6, color="#1d4ed8"), line=dict(color="#1d4ed8", width=2)
+            marker=dict(size=6, color="#1d4ed8"), line=dict(color="#1d4ed8", width=2),
+            connectgaps=False
         ))
 
         fig1.update_layout(
