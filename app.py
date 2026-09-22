@@ -308,14 +308,13 @@ with tab1:
         c6.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
         st.divider()
 
-        # GRÁFICO DIARIO CON ETIQUETAS Y LÍNEA DE FINALIZADOS (CORTADA EN DIAS FUTUROS)
+        # GRÁFICO DIARIO CORREGIDO (Sin connectgaps en las barras)
         fig1 = go.Figure()
         fig1.add_trace(go.Bar(
             x=df_dia["FECHA"], y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
             name="Acumulados al Iniciar", marker_color="#d8e4fc",
             text=df_dia["REPORTES ACUMULADOS AL INICIAR"], textposition="inside",
-            textfont=dict(color="black", size=11),
-            connectgaps=False
+            textfont=dict(color="black", size=11)
         ))
         fig1.add_trace(go.Bar(
             x=df_dia["FECHA"], y=df_dia["REPORTES RECIBIDOS"],
