@@ -231,113 +231,122 @@ def renderizar_panel_graficos(df_lote_objetivo, sufijo=""):
 
 
 # --- PESTAÑA 1: SEGUIMIENTO DIARIO ---
-with tab1:
-    st.subheader("📅 Comportamiento Diario por Mes")
-    if df is not None:
-        col_s1, col_s2, _ = st.columns([1, 1, 2])
-        with col_s1:
-            anio_seleccionado = st.selectbox("Seleccione el Año:", [2025, 2026, 2027], index=1, key="anio_s1")
-        with col_s2:
-            meses_dict = {
-                1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-                5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-                9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
-            }
-            mes_nombre_seleccionado = st.selectbox("Seleccione el Mes:", list(meses_dict.values()), index=7, key="mes_s1")
-            mes_seleccionado = [k for k, v in meses_dict.items() if v == mes_nombre_seleccionado][0]
+        with tab1:
+            st.subheader("📅 Comportamiento Diario por Mes")
+            if df is not None:
+                col_s1, col_s2, _ = st.columns([1, 1, 2])
+                with col_s1:
+                    anio_seleccionado = st.selectbox("Seleccione el Año:", [2025, 2026, 2027], index=1, key="anio_s1")
+                with col_s2:
+                    meses_dict = {
+                        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+                        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+                        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+                    }
+                    mes_nombre_seleccionado = st.selectbox("Seleccione el Mes:", list(meses_dict.values()), index=7, key="mes_s1")
+                    mes_seleccionado = [k for k, v in meses_dict.items() if v == mes_nombre_seleccionado][0]
 
-        inicio_mes_dinamico = pd.Timestamp(year=anio_seleccionado, month=mes_seleccionado, day=1)
-        ultimo_dia = calendar.monthrange(anio_seleccionado, mes_seleccionado)[1]
-        fin_mes_dinamico = pd.Timestamp(year=anio_seleccionado, month=mes_seleccionado, day=ultimo_dia) + pd.Timedelta(days=1)
+                inicio_mes_dinamico = pd.Timestamp(year=anio_seleccionado, month=mes_seleccionado, day=1)
+                ultimo_dia = calendar.monthrange(anio_seleccionado, mes_seleccionado)[1]
+                fin_mes_dinamico = pd.Timestamp(year=anio_seleccionado, month=mes_seleccionado, day=ultimo_dia) + pd.Timedelta(days=1)
 
-        acumulado_mes = int((
-            (df["RECEPCION_DT"] < inicio_mes_dinamico) & 
-            (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_mes_dinamico))
-        ).sum())
+                # Obtener la fecha máxima real de recepción en los datos para cortar el reporte futuro
+                fecha_maxima_datos = df["RECEPCION_DT"].max()
 
-        recibidos_mes = int(((df["RECEPCION_DT"] >= inicio_mes_dinamico) & (df["RECEPCION_DT"] < fin_mes_dinamico)).sum())
-        total_mes = acumulado_mes + recibidos_mes
-        finalizados_mes = int(((df["FINALIZACION_DT"] >= inicio_mes_dinamico) & (df["FINALIZACION_DT"] < fin_mes_dinamico)).sum())
-        pendientes_mes = total_mes - finalizados_mes
+                acumulado_mes = int((
+                    (df["RECEPCION_DT"] < inicio_mes_dinamico) & 
+                    (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_mes_dinamico))
+                ).sum())
 
-        dias_mes = pd.date_range(start=inicio_mes_dinamico, end=pd.Timestamp(year=anio_seleccionado, month=mes_seleccionado, day=ultimo_dia), freq="D")
-        datos_diarios = []
+                recibidos_mes = int(((df["RECEPCION_DT"] >= inicio_mes_dinamico) & (df["RECEPCION_DT"] < fin_mes_dinamico)).sum())
+                total_mes = acumulado_mes + recibidos_mes
+                finalizados_mes = int(((df["FINALIZACION_DT"] >= inicio_mes_dinamico) & (df["FINALIZACION_DT"] < fin_mes_dinamico)).sum())
+                pendientes_mes = total_mes - finalizados_mes
 
-        for dia in dias_mes:
-            inicio_dia = dia
-            fin_dia = dia + pd.Timedelta(days=1)
-            
-            cant_recibidos = int(((df["RECEPCION_DT"] >= inicio_dia) & (df["RECEPCION_DT"] < fin_dia)).sum())
-            cant_acumulada = int(((df["RECEPCION_DT"] < inicio_dia) & (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_dia))).sum())
-            total_rep = cant_recibidos + cant_acumulada
-            cant_finalizados = int(((df["FINALIZACION_DT"] >= inicio_dia) & (df["FINALIZACION_DT"] < fin_dia)).sum())
-            efectividad_dia = (cant_finalizados / total_rep * 100) if total_rep > 0 else 0.0
+                dias_mes = pd.date_range(start=inicio_mes_dinamico, end=pd.Timestamp(year=anio_seleccionado, month=mes_seleccionado, day=ultimo_dia), freq="D")
+                datos_diarios = []
 
-            datos_diarios.append({
-                "FECHA": dia.strftime("%d/%m/%Y"),
-                "REPORTES RECIBIDOS": cant_recibidos,
-                "REPORTES ACUMULADOS AL INICIAR": cant_acumulada,
-                "TOTAL REPORTES": total_rep,
-                "REPORTES FINALIZADOS": cant_finalizados,
-                "EFECTIVIDAD (%)": round(efectividad_dia, 2),
-            })
+                for dia in dias_mes:
+                    inicio_dia = dia
+                    fin_dia = dia + pd.Timedelta(days=1)
+                    
+                    # VALIDACIÓN: Si el día excede la última fecha con datos reales, fijar en 0
+                    if pd.notna(fecha_maxima_datos) and inicio_dia > fecha_maxima_datos:
+                        cant_recibidos = 0
+                        cant_acumulada = 0
+                        total_rep = 0
+                        cant_finalizados = 0
+                        efectividad_dia = 0.0
+                    else:
+                        cant_recibidos = int(((df["RECEPCION_DT"] >= inicio_dia) & (df["RECEPCION_DT"] < fin_dia)).sum())
+                        cant_acumulada = int(((df["RECEPCION_DT"] < inicio_dia) & (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_dia))).sum())
+                        total_rep = cant_recibidos + cant_acumulada
+                        cant_finalizados = int(((df["FINALIZACION_DT"] >= inicio_dia) & (df["FINALIZACION_DT"] < fin_dia)).sum())
+                        efectividad_dia = (cant_finalizados / total_rep * 100) if total_rep > 0 else 0.0
 
-        df_dia = pd.DataFrame(datos_diarios)
-        efectividad_promedio_mes = df_dia["EFECTIVIDAD (%)"].mean() if not df_dia.empty else 0.0
+                    datos_diarios.append({
+                        "FECHA": dia.strftime("%d/%m/%Y"),
+                        "REPORTES RECIBIDOS": cant_recibidos,
+                        "REPORTES ACUMULADOS AL INICIAR": cant_acumulada,
+                        "TOTAL REPORTES": total_rep,
+                        "REPORTES FINALIZADOS": cant_finalizados,
+                        "EFECTIVIDAD (%)": round(efectividad_dia, 2),
+                    })
 
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
-        c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
-        c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
-        c3.metric("📊 Total", f"{total_mes:,}")
-        c4.metric("✅ Finalizados", f"{finalizados_mes:,}")
-        c5.metric("⏳ Pendientes", f"{pendientes_mes:,}")
-        c6.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
-        st.divider()
+                df_dia = pd.DataFrame(datos_diarios)
+                efectividad_promedio_mes = df_dia[df_dia["TOTAL REPORTES"] > 0]["EFECTIVIDAD (%)"].mean() if not df_dia.empty else 0.0
 
-        # GRÁFICO DIARIO CON ETIQUETAS Y LÍNEA DE FINALIZADOS
-        fig1 = go.Figure()
-        fig1.add_trace(go.Bar(
-            x=df_dia["FECHA"], y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
-            name="Acumulados al Iniciar", marker_color="#d8e4fc",
-            text=df_dia["REPORTES ACUMULADOS AL INICIAR"], textposition="inside",
-            textfont=dict(color="black", size=11)
-        ))
-        fig1.add_trace(go.Bar(
-            x=df_dia["FECHA"], y=df_dia["REPORTES RECIBIDOS"],
-            name="Reportes Recibidos", marker_color="#e9f056",
-            text=df_dia["REPORTES RECIBIDOS"], textposition="inside",
-            textfont=dict(color="black", size=11)
-        ))
-        fig1.add_trace(go.Scatter(
-            x=df_dia["FECHA"], y=df_dia["TOTAL REPORTES"],
-            name="Total Reportes", mode="text+markers",
-            text=df_dia["TOTAL REPORTES"], textposition="top center",
-            textfont=dict(color="#1F4E78", size=12),
-            marker=dict(size=8, color="rgba(0,0,0,0)"), showlegend=False
-        ))
-        fig1.add_trace(go.Scatter(
-            x=df_dia["FECHA"], y=df_dia["REPORTES FINALIZADOS"],
-            name="Reportes Finalizados", mode="lines+markers+text",
-            text=df_dia["REPORTES FINALIZADOS"], textposition="bottom center",
-            textfont=dict(color="#1d4ed8", size=11),
-            marker=dict(size=6, color="#1d4ed8"), line=dict(color="#1d4ed8", width=2)
-        ))
+                c1, c2, c3, c4, c5, c6 = st.columns(6)
+                c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
+                c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
+                c3.metric("📊 Total", f"{total_mes:,}")
+                c4.metric("✅ Finalizados", f"{finalizados_mes:,}")
+                c5.metric("⏳ Pendientes", f"{pendientes_mes:,}")
+                c6.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
+                st.divider()
 
-        fig1.update_layout(
-            title=dict(text=f"<b>Flujo Diario de Reportes - {mes_nombre_seleccionado} {anio_seleccionado}</b>", font=dict(size=18, color="#1f4e78")),
-            barmode="stack",
-            xaxis_title="<b>Día del Mes</b>",
-            yaxis_title="<b>Cantidad de Reportes</b>",
-            hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1)
-        )
-        st.plotly_chart(fig1, use_container_width=True)
+                # GRÁFICO DIARIO CON ETIQUETAS Y LÍNEA DE FINALIZADOS
+                fig1 = go.Figure()
+                fig1.add_trace(go.Bar(
+                    x=df_dia["FECHA"], y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
+                    name="Acumulados al Iniciar", marker_color="#d8e4fc",
+                    text=df_dia["REPORTES ACUMULADOS AL INICIAR"], textposition="inside",
+                    textfont=dict(color="black", size=11)
+                ))
+                fig1.add_trace(go.Bar(
+                    x=df_dia["FECHA"], y=df_dia["REPORTES RECIBIDOS"],
+                    name="Reportes Recibidos", marker_color="#e9f056",
+                    text=df_dia["REPORTES RECIBIDOS"], textposition="inside",
+                    textfont=dict(color="black", size=11)
+                ))
+                fig1.add_trace(go.Scatter(
+                    x=df_dia["FECHA"], y=df_dia["TOTAL REPORTES"],
+                    name="Total Reportes", mode="text+markers",
+                    text=df_dia["TOTAL REPORTES"], textposition="top center",
+                    textfont=dict(color="#1F4E78", size=12),
+                    marker=dict(size=8, color="rgba(0,0,0,0)"), showlegend=False
+                ))
+                fig1.add_trace(go.Scatter(
+                    x=df_dia["FECHA"], y=df_dia["REPORTES FINALIZADOS"],
+                    name="Reportes Finalizados", mode="lines+markers+text",
+                    text=df_dia["REPORTES FINALIZADOS"], textposition="bottom center",
+                    textfont=dict(color="#1d4ed8", size=11),
+                    marker=dict(size=6, color="#1d4ed8"), line=dict(color="#1d4ed8", width=2)
+                ))
 
-        with st.expander("Ver y seleccionar incidencias del mes"):
-            df_mes_filtro = df[(df["RECEPCION_DT"] >= inicio_mes_dinamico) & (df["RECEPCION_DT"] < fin_mes_dinamico)].copy()
-            renderizar_tabla_con_seleccion(df_mes_filtro, "diario_mes", "Recibidas en el Día")
+                fig1.update_layout(
+                    title=dict(text=f"<b>Flujo Diario de Reportes - {mes_nombre_seleccionado} {anio_seleccionado}</b>", font=dict(size=18, color="#1f4e78")),
+                    barmode="stack",
+                    xaxis_title="<b>Día del Mes</b>",
+                    yaxis_title="<b>Cantidad de Reportes</b>",
+                    hovermode="x unified",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1)
+                )
+                st.plotly_chart(fig1, use_container_width=True)
 
-
+                with st.expander("Ver y seleccionar incidencias del mes"):
+                    df_mes_filtro = df[(df["RECEPCION_DT"] >= inicio_mes_dinamico) & (df["RECEPCION_DT"] < fin_mes_dinamico)].copy()
+                    renderizar_tabla_con_seleccion(df_mes_filtro, "diario_mes", "Recibidas en el Día")
 # --- PESTAÑA 2: SEGUIMIENTO ANUAL ---
 with tab2:
     st.subheader("📈 Seguimiento Mensual Acumulado (2026)")
