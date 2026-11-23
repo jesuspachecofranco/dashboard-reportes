@@ -129,6 +129,11 @@ def cargar_datos():
             df[col] = df[col].astype(str).str.strip()
             df[col] = df[col].replace(["NAN", "NONE", "NAT", ""], pd.NA)
 
+    if "ESTADO" in df.columns:
+        df["ESTADO"] = df["ESTADO"].fillna("").astype(str).str.strip().str.upper()
+    else:
+        df["ESTADO"] = ""
+
     df["RECEPCION_DT"] = pd.to_datetime(
         df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
     )
@@ -146,6 +151,12 @@ def cargar_datos():
     df["AÑO RECIBIDO"] = df["RECEPCION_DT"].dt.year.fillna("").astype(str).str.replace(r"\.0$", "", regex=True)
 
     return df
+
+
+def mascara_estado(df_data, estado_objetivo):
+    if "ESTADO" not in df_data.columns:
+        return pd.Series(False, index=df_data.index)
+    return df_data["ESTADO"].fillna("").astype(str).str.strip().str.upper() == estado_objetivo.upper()
 
 
 df = cargar_datos()
@@ -253,6 +264,9 @@ with tab1:
         # Obtener la fecha máxima real de recepción en los datos para cortar el reporte futuro
         fecha_maxima_datos = df["RECEPCION_DT"].max()
 
+        es_pa = mascara_estado(df, "PA")
+        es_ee = mascara_estado(df, "EE")
+
         acumulado_mes = int((
             (df["RECEPCION_DT"] < inicio_mes_dinamico) & 
             (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_mes_dinamico))
@@ -261,7 +275,21 @@ with tab1:
         recibidos_mes = int(((df["RECEPCION_DT"] >= inicio_mes_dinamico) & (df["RECEPCION_DT"] < fin_mes_dinamico)).sum())
         total_mes = acumulado_mes + recibidos_mes
         finalizados_mes = int(((df["FINALIZACION_DT"] >= inicio_mes_dinamico) & (df["FINALIZACION_DT"] < fin_mes_dinamico)).sum())
-        pendientes_mes = total_mes - finalizados_mes
+
+        # PENDIENTES = ÚNICAMENTE ESTADO PA (no finalizados antes del cierre del mes)
+        df_pendientes_mes = df[
+            es_pa &
+            (df["RECEPCION_DT"] < fin_mes_dinamico) &
+            (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_mes_dinamico))
+        ].copy()
+        pendientes_mes = int(len(df_pendientes_mes))
+
+        # EN EJECUCIÓN = ESTADO EE (no finalizados antes del cierre del mes)
+        ee_mes = int((
+            es_ee &
+            (df["RECEPCION_DT"] < fin_mes_dinamico) &
+            (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_mes_dinamico))
+        ).sum())
 
         dias_mes = pd.date_range(start=inicio_mes_dinamico, end=pd.Timestamp(year=anio_seleccionado, month=mes_seleccionado, day=ultimo_dia), freq="D")
         datos_diarios = []
@@ -270,16 +298,28 @@ with tab1:
             inicio_dia = dia
             fin_dia = dia + pd.Timedelta(days=1)
             
-            # VALIDACIÓN: Si el día excede la última fecha con datos reales, dejamos como None/NaN para cortar la línea y evitar acumulación falsa
+            # VALIDACIÓN: Si el día excede la última fecha con datos reales, dejamos como None/NaN para cortar la línea
             if pd.notna(fecha_maxima_datos) and inicio_dia > fecha_maxima_datos:
                 cant_recibidos = None
                 cant_acumulada = None
+                cant_ee = None
+                cant_pa = None
                 total_rep = None
                 cant_finalizados = None
                 efectividad_dia = 0.0
             else:
                 cant_recibidos = int(((df["RECEPCION_DT"] >= inicio_dia) & (df["RECEPCION_DT"] < fin_dia)).sum())
                 cant_acumulada = int(((df["RECEPCION_DT"] < inicio_dia) & (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_dia))).sum())
+                cant_ee = int((
+                    es_ee &
+                    (df["RECEPCION_DT"] < fin_dia) &
+                    (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_dia))
+                ).sum())
+                cant_pa = int((
+                    es_pa &
+                    (df["RECEPCION_DT"] < fin_dia) &
+                    (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_dia))
+                ).sum())
                 total_rep = cant_recibidos + cant_acumulada
                 cant_finalizados = int(((df["FINALIZACION_DT"] >= inicio_dia) & (df["FINALIZACION_DT"] < fin_dia)).sum())
                 efectividad_dia = (cant_finalizados / total_rep * 100) if total_rep > 0 else 0.0
@@ -288,6 +328,8 @@ with tab1:
                 "FECHA": dia.strftime("%d/%m/%Y"),
                 "REPORTES RECIBIDOS": cant_recibidos,
                 "REPORTES ACUMULADOS AL INICIAR": cant_acumulada,
+                "EN EJECUCION (EE)": cant_ee,
+                "PENDIENTES (PA)": cant_pa,
                 "TOTAL REPORTES": total_rep,
                 "REPORTES FINALIZADOS": cant_finalizados,
                 "EFECTIVIDAD (%)": round(efectividad_dia, 2),
@@ -309,16 +351,17 @@ with tab1:
         efectividad_validos = df_dia[df_dia["TOTAL REPORTES"].notna() & (df_dia["TOTAL REPORTES"] > 0)]["EFECTIVIDAD (%)"]
         efectividad_promedio_mes = efectividad_validos.mean() if not efectividad_validos.empty else 0.0
 
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
         c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
         c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
         c3.metric("📊 Total", f"{total_mes:,}")
         c4.metric("✅ Finalizados", f"{finalizados_mes:,}")
-        c5.metric("⏳ Pendientes", f"{pendientes_mes:,}")
-        c6.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
+        c5.metric("⏳ Pendientes (PA)", f"{pendientes_mes:,}")
+        c6.metric("⚙️ En Ejecución (EE)", f"{ee_mes:,}")
+        c7.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
         st.divider()
 
-        # GRÁFICO DIARIO CORREGIDO (Con curvas de promedio de recibidos y atendidos)
+        # GRÁFICO DIARIO (Con columna/barra para EE, curvas de promedio y cálculo de pendientes solo PA)
         fig1 = go.Figure()
         fig1.add_trace(go.Bar(
             x=df_dia["FECHA"], y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
@@ -330,6 +373,12 @@ with tab1:
             x=df_dia["FECHA"], y=df_dia["REPORTES RECIBIDOS"],
             name="Reportes Recibidos", marker_color="#e9f056",
             text=df_dia["REPORTES RECIBIDOS"], textposition="inside",
+            textfont=dict(color="black", size=11)
+        ))
+        fig1.add_trace(go.Bar(
+            x=df_dia["FECHA"], y=df_dia["EN EJECUCION (EE)"],
+            name="En Ejecución (EE)", marker_color="#93c5fd",
+            text=df_dia["EN EJECUCION (EE)"], textposition="inside",
             textfont=dict(color="black", size=11)
         ))
         fig1.add_trace(go.Scatter(
@@ -373,49 +422,44 @@ with tab1:
         )
         st.plotly_chart(fig1, use_container_width=True)
 
-        # CUADRO RESUMEN + GRÁFICA DE PENDIENTES MENSUALES POR MOTIVO
+        # CUADRO RESUMEN + GRÁFICA DE PENDIENTES (SOLO PA) MENSUALES POR MOTIVO
         st.divider()
-        st.markdown(f"### ⏳ Pendientes Mensuales por Motivo — {mes_nombre_seleccionado} {anio_seleccionado}")
-
-        df_pendientes_mes = df[
-            (df["RECEPCION_DT"] < fin_mes_dinamico) &
-            (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_mes_dinamico))
-        ].copy()
+        st.markdown(f"### ⏳ Pendientes (PA) Mensuales por Motivo — {mes_nombre_seleccionado} {anio_seleccionado}")
 
         if not df_pendientes_mes.empty and "MOTIVO" in df_pendientes_mes.columns:
             motivos_pendientes = df_pendientes_mes["MOTIVO"].fillna("").astype(str).str.strip()
             motivos_pendientes = motivos_pendientes.replace("", "SIN MOTIVO")
 
             resumen_motivos = motivos_pendientes.value_counts().reset_index()
-            resumen_motivos.columns = ["MOTIVO", "PENDIENTES"]
-            total_pendientes_motivos = int(resumen_motivos["PENDIENTES"].sum())
-            resumen_motivos["% PENDIENTES"] = (resumen_motivos["PENDIENTES"] / total_pendientes_motivos * 100).round(1)
+            resumen_motivos.columns = ["MOTIVO", "PENDIENTES (PA)"]
+            total_pendientes_motivos = int(resumen_motivos["PENDIENTES (PA)"].sum())
+            resumen_motivos["% PENDIENTES (PA)"] = (resumen_motivos["PENDIENTES (PA)"] / total_pendientes_motivos * 100).round(1)
 
             tabla_resumen_motivos = resumen_motivos.copy()
-            tabla_resumen_motivos["% PENDIENTES"] = tabla_resumen_motivos["% PENDIENTES"].map(lambda x: f"{x:.1f}%")
+            tabla_resumen_motivos["% PENDIENTES (PA)"] = tabla_resumen_motivos["% PENDIENTES (PA)"].map(lambda x: f"{x:.1f}%")
             tabla_resumen_motivos = pd.concat([
                 tabla_resumen_motivos,
                 pd.DataFrame([{
                     "MOTIVO": "TOTAL GENERAL",
-                    "PENDIENTES": total_pendientes_motivos,
-                    "% PENDIENTES": "100.0%"
+                    "PENDIENTES (PA)": total_pendientes_motivos,
+                    "% PENDIENTES (PA)": "100.0%"
                 }])
             ], ignore_index=True)
 
             col_res_tbl, col_res_fig = st.columns([1.1, 1.4])
             with col_res_tbl:
-                st.markdown("**Cuadro Resumen de Pendientes por Motivo**")
+                st.markdown("**Cuadro Resumen de Pendientes (PA) por Motivo**")
                 st.dataframe(tabla_resumen_motivos, use_container_width=True, hide_index=True)
 
             with col_res_fig:
-                resumen_ordenado = resumen_motivos.sort_values("PENDIENTES", ascending=True)
+                resumen_ordenado = resumen_motivos.sort_values("PENDIENTES (PA)", ascending=True)
                 fig_motivos_mes = px.bar(
                     resumen_ordenado,
-                    x="PENDIENTES",
+                    x="PENDIENTES (PA)",
                     y="MOTIVO",
                     orientation="h",
-                    text="PENDIENTES",
-                    title=f"Pendientes por Motivo - {mes_nombre_seleccionado} {anio_seleccionado}",
+                    text="PENDIENTES (PA)",
+                    title=f"Pendientes (PA) por Motivo - {mes_nombre_seleccionado} {anio_seleccionado}",
                 )
                 fig_motivos_mes.update_traces(
                     marker_color="#b91c1c",
@@ -423,14 +467,14 @@ with tab1:
                     cliponaxis=False
                 )
                 fig_motivos_mes.update_layout(
-                    xaxis_title="<b>Cantidad de Reportes Pendientes</b>",
+                    xaxis_title="<b>Cantidad de Reportes Pendientes (PA)</b>",
                     yaxis_title="<b>Motivo</b>",
                     height=max(320, len(resumen_ordenado) * 34),
                     margin=dict(r=40)
                 )
                 st.plotly_chart(fig_motivos_mes, use_container_width=True, key="fig_pendientes_mensuales_motivo")
         else:
-            st.info("No hay reportes pendientes para el mes seleccionado.")
+            st.info("No hay reportes pendientes en estado PA para el mes seleccionado.")
 
         with st.expander("Ver y seleccionar incidencias del mes"):
             df_mes_filtro = df[(df["RECEPCION_DT"] >= inicio_mes_dinamico) & (df["RECEPCION_DT"] < fin_mes_dinamico)].copy()
@@ -457,6 +501,9 @@ with tab2:
             9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"
         }
 
+        es_pa_anual = mascara_estado(df, "PA")
+        es_ee_anual = mascara_estado(df, "EE")
+
         datos_anuales = []
 
         for m in range(1, max_mes_datos + 1):
@@ -472,11 +519,23 @@ with tab2:
             recibidos_m = int(((df["RECEPCION_DT"] >= inicio_mes) & (df["RECEPCION_DT"] < fin_mes)).sum())
             total_m = acumulado_m + recibidos_m
             finalizados_m = int(((df["FINALIZACION_DT"] >= inicio_mes) & (df["FINALIZACION_DT"] < fin_mes)).sum())
+            pendientes_pa_m = int((
+                es_pa_anual &
+                (df["RECEPCION_DT"] < fin_mes) &
+                (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_mes))
+            ).sum())
+            ee_m = int((
+                es_ee_anual &
+                (df["RECEPCION_DT"] < fin_mes) &
+                (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_mes))
+            ).sum())
 
             datos_anuales.append({
                 "MES": meses_dict_anual[m],
                 "ACUMULADO AL INICIAR": acumulado_m,
                 "REPORTES RECIBIDOS": recibidos_m,
+                "PENDIENTES (PA)": pendientes_pa_m,
+                "EN EJECUCION (EE)": ee_m,
                 "TOTAL REPORTES": total_m,
                 "REPORTES FINALIZADOS": finalizados_m
             })
@@ -484,6 +543,7 @@ with tab2:
         df_anual = pd.DataFrame(datos_anuales)
 
         st.markdown(f"**Resumen Acumulado Mensual (Enero - {meses_dict_anual[max_mes_datos]} {anio_anual})**")
+        st.dataframe(df_anual, use_container_width=True, hide_index=True)
 
         # GRÁFICO ANUAL
         fig_anual = go.Figure()
@@ -523,6 +583,7 @@ with tab2:
             legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1)
         )
         st.plotly_chart(fig_anual, use_container_width=True)
+
 # --- PESTAÑA 3: BÚSQUEDA AVANZADA ---
 with tab3:
     st.subheader("🔍 Buscador de Incidencias")
@@ -549,15 +610,29 @@ with tab3:
             (df_base_filtrada["FINALIZACION_DT"].isna() | (df_base_filtrada["FINALIZACION_DT"] >= inicio_sel))
         ].copy()
 
+        df_pendientes_pa_dia = df_base_filtrada[
+            mascara_estado(df_base_filtrada, "PA") &
+            (df_base_filtrada["RECEPCION_DT"] < fin_sel) &
+            (df_base_filtrada["FINALIZACION_DT"].isna() | (df_base_filtrada["FINALIZACION_DT"] >= fin_sel))
+        ].copy()
+
+        df_ee_dia = df_base_filtrada[
+            mascara_estado(df_base_filtrada, "EE") &
+            (df_base_filtrada["RECEPCION_DT"] < fin_sel) &
+            (df_base_filtrada["FINALIZACION_DT"].isna() | (df_base_filtrada["FINALIZACION_DT"] >= fin_sel))
+        ].copy()
+
         df_recibidos_dia = df_base_filtrada[
             (df_base_filtrada["RECEPCION_DT"] >= inicio_sel) & 
             (df_base_filtrada["RECEPCION_DT"] < fin_sel)
         ].copy()
 
         st.markdown(f"##### 📊 Resultados para el: {fecha_busqueda.strftime('%d/%m/%Y')}")
-        m1, m2 = st.columns(2)
+        m1, m2, m3, m4 = st.columns(4)
         m1.metric("📦 Acumulados Previos Activos", f"{len(df_acumulados_dia):,}")
         m2.metric("📥 Recibidos en el Día", f"{len(df_recibidos_dia):,}")
+        m3.metric("⏳ Pendientes (PA)", f"{len(df_pendientes_pa_dia):,}")
+        m4.metric("⚙️ En Ejecución (EE)", f"{len(df_ee_dia):,}")
         st.divider()
 
         st.markdown("##### 📦 Detalle Acumulados Previos")
