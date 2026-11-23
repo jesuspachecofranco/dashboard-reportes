@@ -234,7 +234,7 @@ def renderizar_panel_graficos(df_lote_objetivo, sufijo=""):
 with tab1:
     st.subheader("📅 Comportamiento Diario por Mes")
     if df is not None:
-        col_s1, col_s2, _ = st.columns([1, 1, 2])
+        col_s1, col_s2, col_s3 = st.columns([1, 1, 2])
         with col_s1:
             anio_seleccionado = st.selectbox("Seleccione el Año:", [2025, 2026, 2027], index=1, key="anio_s1")
         with col_s2:
@@ -245,6 +245,13 @@ with tab1:
             }
             mes_nombre_seleccionado = st.selectbox("Seleccione el Mes:", list(meses_dict.values()), index=7, key="mes_s1")
             mes_seleccionado = [k for k, v in meses_dict.items() if v == mes_nombre_seleccionado][0]
+        with col_s3:
+            base_promedio = st.selectbox(
+                "Curva de promedio diario sobre:",
+                ["Reportes Recibidos", "Reportes Finalizados"],
+                index=0,
+                key="base_prom_s1",
+            )
 
         inicio_mes_dinamico = pd.Timestamp(year=anio_seleccionado, month=mes_seleccionado, day=1)
         ultimo_dia = calendar.monthrange(anio_seleccionado, mes_seleccionado)[1]
@@ -294,6 +301,12 @@ with tab1:
             })
 
         df_dia = pd.DataFrame(datos_diarios)
+
+        # Calcular promedio diario solo sobre días válidos (no None)
+        col_objetivo = "REPORTES RECIBIDOS" if base_promedio == "Reportes Recibidos" else "REPORTES FINALIZADOS"
+        serie_valida = pd.to_numeric(df_dia[col_objetivo], errors="coerce").dropna()
+        promedio_diario = float(serie_valida.mean()) if not serie_valida.empty else 0.0
+        curva_promedio = [round(promedio_diario, 1) if pd.notna(v) else None for v in df_dia[col_objetivo]]
         
         # Filtrar ceros/nulos para el cálculo promedio de efectividad
         efectividad_validos = df_dia[df_dia["TOTAL REPORTES"].notna() & (df_dia["TOTAL REPORTES"] > 0)]["EFECTIVIDAD (%)"]
@@ -308,7 +321,7 @@ with tab1:
         c6.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
         st.divider()
 
-        # GRÁFICO DIARIO CORREGIDO (Sin connectgaps en las barras)
+        # GRÁFICO DIARIO CORREGIDO (Con curva de promedio)
         fig1 = go.Figure()
         fig1.add_trace(go.Bar(
             x=df_dia["FECHA"], y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
@@ -336,6 +349,13 @@ with tab1:
             text=df_dia["REPORTES FINALIZADOS"], textposition="bottom center",
             textfont=dict(color="#1d4ed8", size=11),
             marker=dict(size=6, color="#1d4ed8"), line=dict(color="#1d4ed8", width=2),
+            connectgaps=False
+        ))
+        fig1.add_trace(go.Scatter(
+            x=df_dia["FECHA"], y=curva_promedio,
+            name=f"Promedio ({base_promedio}): {promedio_diario:.1f}/día",
+            mode="lines",
+            line=dict(color="#dc2626", width=2.5, dash="dash"),
             connectgaps=False
         ))
 
