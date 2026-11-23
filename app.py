@@ -313,4 +313,308 @@ with tab1:
         c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
         c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
         c3.metric("📊 Total", f"{total_mes:,}")
-        c4.metric("✅ Finalizados", f"{
+        c4.metric("✅ Finalizados", f"{finalizados_mes:,}")
+        c5.metric("⏳ Pendientes", f"{pendientes_mes:,}")
+        c6.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
+        st.divider()
+
+        # GRÁFICO DIARIO CORREGIDO (Con curvas de promedio de recibidos y atendidos)
+        fig1 = go.Figure()
+        fig1.add_trace(go.Bar(
+            x=df_dia["FECHA"], y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
+            name="Acumulados al Iniciar", marker_color="#d8e4fc",
+            text=df_dia["REPORTES ACUMULADOS AL INICIAR"], textposition="inside",
+            textfont=dict(color="black", size=11)
+        ))
+        fig1.add_trace(go.Bar(
+            x=df_dia["FECHA"], y=df_dia["REPORTES RECIBIDOS"],
+            name="Reportes Recibidos", marker_color="#e9f056",
+            text=df_dia["REPORTES RECIBIDOS"], textposition="inside",
+            textfont=dict(color="black", size=11)
+        ))
+        fig1.add_trace(go.Scatter(
+            x=df_dia["FECHA"], y=df_dia["TOTAL REPORTES"],
+            name="Total Reportes", mode="text+markers",
+            text=df_dia["TOTAL REPORTES"], textposition="top center",
+            textfont=dict(color="#1F4E78", size=12),
+            marker=dict(size=8, color="rgba(0,0,0,0)"), showlegend=False,
+            connectgaps=False
+        ))
+        fig1.add_trace(go.Scatter(
+            x=df_dia["FECHA"], y=df_dia["REPORTES FINALIZADOS"],
+            name="Reportes Finalizados", mode="lines+markers+text",
+            text=df_dia["REPORTES FINALIZADOS"], textposition="bottom center",
+            textfont=dict(color="#1d4ed8", size=11),
+            marker=dict(size=6, color="#1d4ed8"), line=dict(color="#1d4ed8", width=2),
+            connectgaps=False
+        ))
+        fig1.add_trace(go.Scatter(
+            x=df_dia["FECHA"], y=curva_prom_recibidos,
+            name=f"Prom. Recibidos ({promedio_recibidos:.1f}/día)",
+            mode="lines",
+            line=dict(color="#d97706", width=2.5, dash="dash"),
+            connectgaps=False
+        ))
+        fig1.add_trace(go.Scatter(
+            x=df_dia["FECHA"], y=curva_prom_atendidos,
+            name=f"Prom. Atendidos ({promedio_atendidos:.1f}/día)",
+            mode="lines",
+            line=dict(color="#16a34a", width=2.5, dash="dot"),
+            connectgaps=False
+        ))
+
+        fig1.update_layout(
+            title=dict(text=f"<b>Flujo Diario de Reportes - {mes_nombre_seleccionado} {anio_seleccionado}</b>", font=dict(size=18, color="#1f4e78")),
+            barmode="stack",
+            xaxis_title="<b>Día del Mes</b>",
+            yaxis_title="<b>Cantidad de Reportes</b>",
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig1, use_container_width=True)
+
+        # CUADRO RESUMEN + GRÁFICA DE PENDIENTES MENSUALES POR MOTIVO
+        st.divider()
+        st.markdown(f"### ⏳ Pendientes Mensuales por Motivo — {mes_nombre_seleccionado} {anio_seleccionado}")
+
+        df_pendientes_mes = df[
+            (df["RECEPCION_DT"] < fin_mes_dinamico) &
+            (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_mes_dinamico))
+        ].copy()
+
+        if not df_pendientes_mes.empty and "MOTIVO" in df_pendientes_mes.columns:
+            motivos_pendientes = df_pendientes_mes["MOTIVO"].fillna("").astype(str).str.strip()
+            motivos_pendientes = motivos_pendientes.replace("", "SIN MOTIVO")
+
+            resumen_motivos = motivos_pendientes.value_counts().reset_index()
+            resumen_motivos.columns = ["MOTIVO", "PENDIENTES"]
+            total_pendientes_motivos = int(resumen_motivos["PENDIENTES"].sum())
+            resumen_motivos["% PENDIENTES"] = (resumen_motivos["PENDIENTES"] / total_pendientes_motivos * 100).round(1)
+
+            tabla_resumen_motivos = resumen_motivos.copy()
+            tabla_resumen_motivos["% PENDIENTES"] = tabla_resumen_motivos["% PENDIENTES"].map(lambda x: f"{x:.1f}%")
+            tabla_resumen_motivos = pd.concat([
+                tabla_resumen_motivos,
+                pd.DataFrame([{
+                    "MOTIVO": "TOTAL GENERAL",
+                    "PENDIENTES": total_pendientes_motivos,
+                    "% PENDIENTES": "100.0%"
+                }])
+            ], ignore_index=True)
+
+            col_res_tbl, col_res_fig = st.columns([1.1, 1.4])
+            with col_res_tbl:
+                st.markdown("**Cuadro Resumen de Pendientes por Motivo**")
+                st.dataframe(tabla_resumen_motivos, use_container_width=True, hide_index=True)
+
+            with col_res_fig:
+                resumen_ordenado = resumen_motivos.sort_values("PENDIENTES", ascending=True)
+                fig_motivos_mes = px.bar(
+                    resumen_ordenado,
+                    x="PENDIENTES",
+                    y="MOTIVO",
+                    orientation="h",
+                    text="PENDIENTES",
+                    title=f"Pendientes por Motivo - {mes_nombre_seleccionado} {anio_seleccionado}",
+                )
+                fig_motivos_mes.update_traces(
+                    marker_color="#b91c1c",
+                    textposition="outside",
+                    cliponaxis=False
+                )
+                fig_motivos_mes.update_layout(
+                    xaxis_title="<b>Cantidad de Reportes Pendientes</b>",
+                    yaxis_title="<b>Motivo</b>",
+                    height=max(320, len(resumen_ordenado) * 34),
+                    margin=dict(r=40)
+                )
+                st.plotly_chart(fig_motivos_mes, use_container_width=True, key="fig_pendientes_mensuales_motivo")
+        else:
+            st.info("No hay reportes pendientes para el mes seleccionado.")
+
+        with st.expander("Ver y seleccionar incidencias del mes"):
+            df_mes_filtro = df[(df["RECEPCION_DT"] >= inicio_mes_dinamico) & (df["RECEPCION_DT"] < fin_mes_dinamico)].copy()
+            renderizar_tabla_con_seleccion(df_mes_filtro, "diario_mes", "Recibidas en el Día")
+
+# --- PESTAÑA 2: SEGUIMIENTO ANUAL ---
+with tab2:
+    st.subheader("📊 Seguimiento Mensual Acumulado")
+    if df is not None:
+        col_y1, _ = st.columns([1, 3])
+        with col_y1:
+            anio_anual = st.selectbox("Seleccione el Año:", [2025, 2026, 2027], index=1, key="anio_s2")
+
+        # Detectar automáticamente el último mes con datos para el año seleccionado
+        df_anio_actual = df[df["RECEPCION_DT"].dt.year == anio_anual]
+        if not df_anio_actual.empty:
+            max_mes_datos = df_anio_actual["RECEPCION_DT"].max().month
+        else:
+            max_mes_datos = 12 if anio_anual < 2026 else 9  # Valor por defecto si no hay datos
+
+        meses_dict_anual = {
+            1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL",
+            5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO",
+            9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"
+        }
+
+        datos_anuales = []
+
+        for m in range(1, max_mes_datos + 1):
+            inicio_mes = pd.Timestamp(year=anio_anual, month=m, day=1)
+            ultimo_d = calendar.monthrange(anio_anual, m)[1]
+            fin_mes = pd.Timestamp(year=anio_anual, month=m, day=ultimo_d) + pd.Timedelta(days=1)
+
+            acumulado_m = int((
+                (df["RECEPCION_DT"] < inicio_mes) & 
+                (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_mes))
+            ).sum())
+
+            recibidos_m = int(((df["RECEPCION_DT"] >= inicio_mes) & (df["RECEPCION_DT"] < fin_mes)).sum())
+            total_m = acumulado_m + recibidos_m
+            finalizados_m = int(((df["FINALIZACION_DT"] >= inicio_mes) & (df["FINALIZACION_DT"] < fin_mes)).sum())
+
+            datos_anuales.append({
+                "MES": meses_dict_anual[m],
+                "ACUMULADO AL INICIAR": acumulado_m,
+                "REPORTES RECIBIDOS": recibidos_m,
+                "TOTAL REPORTES": total_m,
+                "REPORTES FINALIZADOS": finalizados_m
+            })
+
+        df_anual = pd.DataFrame(datos_anuales)
+
+        st.markdown(f"**Resumen Acumulado Mensual (Enero - {meses_dict_anual[max_mes_datos]} {anio_anual})**")
+
+        # GRÁFICO ANUAL
+        fig_anual = go.Figure()
+        fig_anual.add_trace(go.Bar(
+            x=df_anual["MES"], y=df_anual["ACUMULADO AL INICIAR"],
+            name="Acumulados al Iniciar", marker_color="#d8e4fc",
+            text=df_anual["ACUMULADO AL INICIAR"], textposition="inside",
+            textfont=dict(color="black", size=11)
+        ))
+        fig_anual.add_trace(go.Bar(
+            x=df_anual["MES"], y=df_anual["REPORTES RECIBIDOS"],
+            name="Reportes Recibidos", marker_color="#e9f056",
+            text=df_anual["REPORTES RECIBIDOS"], textposition="inside",
+            textfont=dict(color="black", size=11)
+        ))
+        fig_anual.add_trace(go.Scatter(
+            x=df_anual["MES"], y=df_anual["TOTAL REPORTES"],
+            name="Total Reportes", mode="text",
+            text=df_anual["TOTAL REPORTES"], textposition="top center",
+            textfont=dict(color="#1F4E78", size=12),
+            showlegend=False
+        ))
+        fig_anual.add_trace(go.Scatter(
+            x=df_anual["MES"], y=df_anual["REPORTES FINALIZADOS"],
+            name="Reportes Finalizados", mode="lines+markers+text",
+            text=df_anual["REPORTES FINALIZADOS"], textposition="bottom center",
+            textfont=dict(color="#1d4ed8", size=11),
+            marker=dict(size=6, color="#1d4ed8"), line=dict(color="#1d4ed8", width=2)
+        ))
+
+        fig_anual.update_layout(
+            title=dict(text=f"<b>Evolución Mensual Acumulada - {anio_anual}</b>", font=dict(size=18, color="#1f4e78")),
+            barmode="stack",
+            xaxis_title="<b>Mes</b>",
+            yaxis_title="<b>Cantidad de Reportes</b>",
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_anual, use_container_width=True)
+# --- PESTAÑA 3: BÚSQUEDA AVANZADA ---
+with tab3:
+    st.subheader("🔍 Buscador de Incidencias")
+    if df is not None:
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            fecha_busqueda = st.date_input("Fecha a auditar:", value=datetime(2026, 8, 1))
+        with col_f2:
+            filtro_num = st.text_input("Nº de Incidencia:", placeholder="Ej. 12345")
+        with col_f3:
+            filtro_dir = st.text_input("Dirección:", placeholder="Ej. Av. Principal")
+
+        inicio_sel = pd.Timestamp(fecha_busqueda)
+        fin_sel = inicio_sel + pd.Timedelta(days=1)
+
+        df_base_filtrada = df.copy()
+        if filtro_num:
+            df_base_filtrada = df_base_filtrada[df_base_filtrada["INCIDENCIA"].str.contains(filtro_num, case=False, na=False)]
+        if filtro_dir:
+            df_base_filtrada = df_base_filtrada[df_base_filtrada["DIRECCIÓN"].str.contains(filtro_dir, case=False, na=False)]
+
+        df_acumulados_dia = df_base_filtrada[
+            (df_base_filtrada["RECEPCION_DT"] < inicio_sel) & 
+            (df_base_filtrada["FINALIZACION_DT"].isna() | (df_base_filtrada["FINALIZACION_DT"] >= inicio_sel))
+        ].copy()
+
+        df_recibidos_dia = df_base_filtrada[
+            (df_base_filtrada["RECEPCION_DT"] >= inicio_sel) & 
+            (df_base_filtrada["RECEPCION_DT"] < fin_sel)
+        ].copy()
+
+        st.markdown(f"##### 📊 Resultados para el: {fecha_busqueda.strftime('%d/%m/%Y')}")
+        m1, m2 = st.columns(2)
+        m1.metric("📦 Acumulados Previos Activos", f"{len(df_acumulados_dia):,}")
+        m2.metric("📥 Recibidos en el Día", f"{len(df_recibidos_dia):,}")
+        st.divider()
+
+        st.markdown("##### 📦 Detalle Acumulados Previos")
+        renderizar_tabla_con_seleccion(df_acumulados_dia, "buscador_acumulados", "Acumuladas")
+
+        st.markdown("##### 📥 Detalle Recibidos en el Día")
+        renderizar_tabla_con_seleccion(df_recibidos_dia, "buscador_recibidos", "Recibidas en el Día")
+
+
+# --- PESTAÑA 4: ANÁLISIS ---
+with tab4:
+    st.subheader("🎯 Análisis y Gestión del Lote Seleccionado")
+    if not st.session_state["lote_seleccionado"].empty:
+        df_lote = st.session_state["lote_seleccionado"]
+        st.write(f"Total en el lote: **{len(df_lote)}**")
+
+        if "UNIDAD" not in df_lote.columns:
+            df_lote["UNIDAD"] = ""
+        if "GERENCIA" not in df_lote.columns:
+            df_lote["GERENCIA"] = ""
+
+        columnas_analisis = ["INCIDENCIA", "RECEPCIÓN", "FINALIZACIÓN", "DIRECCIÓN", "CLIENTE", "MOTIVO", "ESTADO", "UNIDAD", "GERENCIA"]
+        df_lote_editado = st.data_editor(df_lote[columnas_analisis], use_container_width=True, key="editor_lote_analisis", hide_index=True)
+
+        if st.button("💾 Guardar Cambios"):
+            st.session_state["lote_seleccionado"].update(df_lote_editado)
+            st.success("¡Guardado exitosamente!")
+
+        st.markdown("---")
+        renderizar_panel_graficos(st.session_state["lote_seleccionado"], sufijo="lote_actual")
+
+        if st.button("🗑️ Vaciar Lote"):
+            st.session_state["lote_seleccionado"] = pd.DataFrame()
+            st.rerun()
+    else:
+        st.info("El lote de análisis está vacío. Selecciona registros desde las pestañas de seguimiento o búsqueda.")
+
+
+# --- PESTAÑA 5: REPORTES ---
+with tab5:
+    st.subheader("📄 Generación de Reportes en Excel")
+    if not st.session_state["lote_seleccionado"].empty:
+        if st.button("📥 Descargar Reporte Excel"):
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                st.session_state["lote_seleccionado"].to_excel(writer, index=False, sheet_name="Reporte")
+            st.download_button("⬇️ Descargar", output.getvalue(), file_name="reporte.xlsx")
+    else:
+        st.info("No hay datos en el lote para exportar.")
+
+
+# --- PESTAÑA 6: ACTUALIZACIÓN ---
+with tab6:
+    st.subheader("📦 Actualización de Datos (.txt)")
+    archivos_txt = st.file_uploader("Sube tus archivos .txt:", type=["txt"], accept_multiple_files=True)
+    if archivos_txt and st.button("🚀 Procesar"):
+        if procesar_txts_seguro(archivos_txt):
+            st.success("¡Actualizado correctamente!")
+            st.cache_data.clear()
+            st.rerun()
