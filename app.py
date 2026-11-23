@@ -373,9 +373,66 @@ with tab1:
         )
         st.plotly_chart(fig1, use_container_width=True)
 
+        # CUADRO RESUMEN + GRÁFICA DE TOTALES MENSUALES POR MOTIVO
+        st.divider()
+        st.markdown(f"### 📌 Totales Mensuales por Motivo — {mes_nombre_seleccionado} {anio_seleccionado}")
+        df_mes_motivos = df[(df["RECEPCION_DT"] >= inicio_mes_dinamico) & (df["RECEPCION_DT"] < fin_mes_dinamico)].copy()
+
+        if not df_mes_motivos.empty and "MOTIVO" in df_mes_motivos.columns:
+            motivos_limpios = df_mes_motivos["MOTIVO"].fillna("").astype(str).str.strip()
+            motivos_limpios = motivos_limpios.replace("", "SIN MOTIVO")
+
+            resumen_motivos = (
+                motivos_limpios.value_counts()
+                .reset_index()
+            )
+            resumen_motivos.columns = ["MOTIVO", "TOTAL MES"]
+            total_motivos_mes = int(resumen_motivos["TOTAL MES"].sum())
+            resumen_motivos["% DEL MES"] = (resumen_motivos["TOTAL MES"] / total_motivos_mes * 100).round(1)
+
+            tabla_resumen_motivos = resumen_motivos.copy()
+            tabla_resumen_motivos["% DEL MES"] = tabla_resumen_motivos["% DEL MES"].map(lambda x: f"{x:.1f}%")
+            tabla_resumen_motivos = pd.concat([
+                tabla_resumen_motivos,
+                pd.DataFrame([{
+                    "MOTIVO": "TOTAL GENERAL",
+                    "TOTAL MES": total_motivos_mes,
+                    "% DEL MES": "100.0%"
+                }])
+            ], ignore_index=True)
+
+            col_res_tbl, col_res_fig = st.columns([1.1, 1.4])
+            with col_res_tbl:
+                st.markdown("**Cuadro Resumen Mensual**")
+                st.dataframe(tabla_resumen_motivos, use_container_width=True, hide_index=True)
+
+            with col_res_fig:
+                resumen_ordenado = resumen_motivos.sort_values("TOTAL MES", ascending=True)
+                fig_motivos_mes = px.bar(
+                    resumen_ordenado,
+                    x="TOTAL MES",
+                    y="MOTIVO",
+                    orientation="h",
+                    text="TOTAL MES",
+                    title=f"Totales por Motivo - {mes_nombre_seleccionado} {anio_seleccionado}",
+                )
+                fig_motivos_mes.update_traces(
+                    marker_color="#1f4e78",
+                    textposition="outside",
+                    cliponaxis=False
+                )
+                fig_motivos_mes.update_layout(
+                    xaxis_title="<b>Cantidad de Reportes</b>",
+                    yaxis_title="<b>Motivo</b>",
+                    height=max(320, len(resumen_ordenado) * 34),
+                    margin=dict(r=40)
+                )
+                st.plotly_chart(fig_motivos_mes, use_container_width=True, key="fig_totales_mensuales_motivo")
+        else:
+            st.info("No hay incidencias recibidas en el mes seleccionado para calcular totales por motivo.")
+
         with st.expander("Ver y seleccionar incidencias del mes"):
-            df_mes_filtro = df[(df["RECEPCION_DT"] >= inicio_mes_dinamico) & (df["RECEPCION_DT"] < fin_mes_dinamico)].copy()
-            renderizar_tabla_con_seleccion(df_mes_filtro, "diario_mes", "Recibidas en el Día")
+            renderizar_tabla_con_seleccion(df_mes_motivos, "diario_mes", "Recibidas en el Día")
 
 # --- PESTAÑA 2: SEGUIMIENTO ANUAL ---
 with tab2:
