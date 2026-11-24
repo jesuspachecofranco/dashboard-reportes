@@ -267,9 +267,7 @@ with tab1:
         es_pa = mascara_estado(df, "PA")
         es_ee = mascara_estado(df, "EE")
 
-        # ACUMULADOS AL INICIAR = SOLO ESTADO PA recibidos antes del inicio del mes y no finalizados antes de esa fecha
         acumulado_mes = int((
-            es_pa &
             (df["RECEPCION_DT"] < inicio_mes_dinamico) & 
             (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_mes_dinamico))
         ).sum())
@@ -311,12 +309,7 @@ with tab1:
                 efectividad_dia = 0.0
             else:
                 cant_recibidos = int(((df["RECEPCION_DT"] >= inicio_dia) & (df["RECEPCION_DT"] < fin_dia)).sum())
-                # Acumulados al iniciar el día: únicamente estado PA no finalizado antes del inicio del día
-                cant_acumulada = int((
-                    es_pa &
-                    (df["RECEPCION_DT"] < inicio_dia) &
-                    (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_dia))
-                ).sum())
+                cant_acumulada = int(((df["RECEPCION_DT"] < inicio_dia) & (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_dia))).sum())
                 cant_ee = int((
                     es_ee &
                     (df["RECEPCION_DT"] < fin_dia) &
@@ -359,7 +352,7 @@ with tab1:
         efectividad_promedio_mes = efectividad_validos.mean() if not efectividad_validos.empty else 0.0
 
         c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-        c1.metric("📦 Acumulado Inicial (PA)", f"{acumulado_mes:,}")
+        c1.metric("📦 Acumulado Inicial", f"{acumulado_mes:,}")
         c2.metric("📥 Recibidos", f"{recibidos_mes:,}")
         c3.metric("📊 Total", f"{total_mes:,}")
         c4.metric("✅ Finalizados", f"{finalizados_mes:,}")
@@ -368,11 +361,11 @@ with tab1:
         c7.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
         st.divider()
 
-        # GRÁFICO DIARIO (Acumulados solo PA, Recibidos, columna/barra para EE, y curvas de promedio)
+        # GRÁFICO DIARIO (Con columna/barra para EE, curvas de promedio y cálculo de pendientes solo PA)
         fig1 = go.Figure()
         fig1.add_trace(go.Bar(
             x=df_dia["FECHA"], y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
-            name="Acumulados al Iniciar (PA)", marker_color="#d8e4fc",
+            name="Acumulados al Iniciar", marker_color="#d8e4fc",
             text=df_dia["REPORTES ACUMULADOS AL INICIAR"], textposition="inside",
             textfont=dict(color="black", size=11)
         ))
@@ -518,9 +511,7 @@ with tab2:
             ultimo_d = calendar.monthrange(anio_anual, m)[1]
             fin_mes = pd.Timestamp(year=anio_anual, month=m, day=ultimo_d) + pd.Timedelta(days=1)
 
-            # Acumulados al iniciar el mes: únicamente estado PA no finalizado antes del inicio del mes
             acumulado_m = int((
-                es_pa_anual &
                 (df["RECEPCION_DT"] < inicio_mes) & 
                 (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_mes))
             ).sum())
@@ -541,7 +532,7 @@ with tab2:
 
             datos_anuales.append({
                 "MES": meses_dict_anual[m],
-                "ACUMULADO AL INICIAR (PA)": acumulado_m,
+                "ACUMULADO AL INICIAR": acumulado_m,
                 "REPORTES RECIBIDOS": recibidos_m,
                 "PENDIENTES (PA)": pendientes_pa_m,
                 "EN EJECUCION (EE)": ee_m,
@@ -557,9 +548,9 @@ with tab2:
         # GRÁFICO ANUAL
         fig_anual = go.Figure()
         fig_anual.add_trace(go.Bar(
-            x=df_anual["MES"], y=df_anual["ACUMULADO AL INICIAR (PA)"],
-            name="Acumulados al Iniciar (PA)", marker_color="#d8e4fc",
-            text=df_anual["ACUMULADO AL INICIAR (PA)"], textposition="inside",
+            x=df_anual["MES"], y=df_anual["ACUMULADO AL INICIAR"],
+            name="Acumulados al Iniciar", marker_color="#d8e4fc",
+            text=df_anual["ACUMULADO AL INICIAR"], textposition="inside",
             textfont=dict(color="black", size=11)
         ))
         fig_anual.add_trace(go.Bar(
@@ -614,9 +605,7 @@ with tab3:
         if filtro_dir:
             df_base_filtrada = df_base_filtrada[df_base_filtrada["DIRECCIÓN"].str.contains(filtro_dir, case=False, na=False)]
 
-        # Acumulados previos activos: únicamente estado PA no finalizado antes de inicio_sel
         df_acumulados_dia = df_base_filtrada[
-            mascara_estado(df_base_filtrada, "PA") &
             (df_base_filtrada["RECEPCION_DT"] < inicio_sel) & 
             (df_base_filtrada["FINALIZACION_DT"].isna() | (df_base_filtrada["FINALIZACION_DT"] >= inicio_sel))
         ].copy()
@@ -640,13 +629,13 @@ with tab3:
 
         st.markdown(f"##### 📊 Resultados para el: {fecha_busqueda.strftime('%d/%m/%Y')}")
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("📦 Acumulados Previos (PA)", f"{len(df_acumulados_dia):,}")
+        m1.metric("📦 Acumulados Previos Activos", f"{len(df_acumulados_dia):,}")
         m2.metric("📥 Recibidos en el Día", f"{len(df_recibidos_dia):,}")
         m3.metric("⏳ Pendientes (PA)", f"{len(df_pendientes_pa_dia):,}")
         m4.metric("⚙️ En Ejecución (EE)", f"{len(df_ee_dia):,}")
         st.divider()
 
-        st.markdown("##### 📦 Detalle Acumulados Previos (PA)")
+        st.markdown("##### 📦 Detalle Acumulados Previos")
         renderizar_tabla_con_seleccion(df_acumulados_dia, "buscador_acumulados", "Acumuladas")
 
         st.markdown("##### 📥 Detalle Recibidos en el Día")
