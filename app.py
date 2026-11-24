@@ -153,11 +153,10 @@ def cargar_datos():
     return df
 
 
-def mascara_estados(df_data, estados_objetivo):
+def mascara_estado(df_data, estado_objetivo):
     if "ESTADO" not in df_data.columns:
         return pd.Series(False, index=df_data.index)
-    objetivos = {e.strip().upper() for e in estados_objetivo}
-    return df_data["ESTADO"].fillna("").astype(str).str.strip().str.upper().isin(objetivos)
+    return df_data["ESTADO"].fillna("").astype(str).str.strip().str.upper() == estado_objetivo.upper()
 
 
 df = cargar_datos()
@@ -201,7 +200,7 @@ def renderizar_tabla_con_seleccion(df_sub, nombre_pestana, tipo_origen_etiqueta=
 
     col_btn1, _ = st.columns([2, 4])
     with col_btn1:
-        if st.button("➕ Agregar al Lote de Análisis", key=f"btn_agregar_{nombre_pestana}"):
+        if st.button(f"➕ Agregar al Lote de Análisis", key=f"btn_agregar_{nombre_pestana}"):
             seleccionadas = df_editado[df_editado["Seleccionar"] == True]
             if not seleccionadas.empty:
                 ids_seleccionados = seleccionadas["INCIDENCIA"].tolist()
@@ -265,11 +264,10 @@ with tab1:
         # Obtener la fecha máxima real de recepción en los datos para cortar el reporte futuro
         fecha_maxima_datos = df["RECEPCION_DT"].max()
 
-        es_pa = mascara_estados(df, ["PA"])
-        es_ee_o_as = mascara_estados(df, ["EE", "AS"])
+        es_pa = mascara_estado(df, "PA")
+        es_ee = mascara_estado(df, "EE")
 
         acumulado_mes = int((
-            es_pa &
             (df["RECEPCION_DT"] < inicio_mes_dinamico) & 
             (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_mes_dinamico))
         ).sum())
@@ -286,9 +284,9 @@ with tab1:
         ].copy()
         pendientes_mes = int(len(df_pendientes_mes))
 
-        # EN EJECUCIÓN = ESTADOS EE Y AS (no finalizados antes del cierre del mes)
+        # EN EJECUCIÓN = ESTADO EE (no finalizados antes del cierre del mes)
         ee_mes = int((
-            es_ee_o_as &
+            es_ee &
             (df["RECEPCION_DT"] < fin_mes_dinamico) &
             (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_mes_dinamico))
         ).sum())
@@ -311,13 +309,9 @@ with tab1:
                 efectividad_dia = 0.0
             else:
                 cant_recibidos = int(((df["RECEPCION_DT"] >= inicio_dia) & (df["RECEPCION_DT"] < fin_dia)).sum())
-                cant_acumulada = int((
-                    es_pa &
-                    (df["RECEPCION_DT"] < inicio_dia) &
-                    (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_dia))
-                ).sum())
+                cant_acumulada = int(((df["RECEPCION_DT"] < inicio_dia) & (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= inicio_dia))).sum())
                 cant_ee = int((
-                    es_ee_o_as &
+                    es_ee &
                     (df["RECEPCION_DT"] < fin_dia) &
                     (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_dia))
                 ).sum())
@@ -367,7 +361,7 @@ with tab1:
         c7.metric("🎯 Efectividad Prom.", f"{efectividad_promedio_mes:.1f}%")
         st.divider()
 
-        # GRÁFICO DIARIO (Con columna/barra para EE incluyendo AS, curvas de promedio y cálculo de pendientes solo PA)
+        # GRÁFICO DIARIO (Con columna/barra para EE, curvas de promedio y cálculo de pendientes solo PA)
         fig1 = go.Figure()
         fig1.add_trace(go.Bar(
             x=df_dia["FECHA"], y=df_dia["REPORTES ACUMULADOS AL INICIAR"],
@@ -519,8 +513,8 @@ with tab2:
             9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"
         }
 
-        es_pa_anual = mascara_estados(df, ["PA"])
-        es_ee_o_as_anual = mascara_estados(df, ["EE", "AS"])
+        es_pa_anual = mascara_estado(df, "PA")
+        es_ee_anual = mascara_estado(df, "EE")
 
         datos_anuales = []
 
@@ -543,7 +537,7 @@ with tab2:
                 (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_mes))
             ).sum())
             ee_m = int((
-                es_ee_o_as_anual &
+                es_ee_anual &
                 (df["RECEPCION_DT"] < fin_mes) &
                 (df["FINALIZACION_DT"].isna() | (df["FINALIZACION_DT"] >= fin_mes))
             ).sum())
@@ -629,13 +623,13 @@ with tab3:
         ].copy()
 
         df_pendientes_pa_dia = df_base_filtrada[
-            mascara_estados(df_base_filtrada, ["PA"]) &
+            mascara_estado(df_base_filtrada, "PA") &
             (df_base_filtrada["RECEPCION_DT"] < fin_sel) &
             (df_base_filtrada["FINALIZACION_DT"].isna() | (df_base_filtrada["FINALIZACION_DT"] >= fin_sel))
         ].copy()
 
         df_ee_dia = df_base_filtrada[
-            mascara_estados(df_base_filtrada, ["EE", "AS"]) &
+            mascara_estado(df_base_filtrada, "EE") &
             (df_base_filtrada["RECEPCION_DT"] < fin_sel) &
             (df_base_filtrada["FINALIZACION_DT"].isna() | (df_base_filtrada["FINALIZACION_DT"] >= fin_sel))
         ].copy()
