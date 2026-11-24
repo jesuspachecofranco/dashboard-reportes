@@ -381,13 +381,25 @@ with tab1:
             text=df_dia["EN EJECUCION (EE)"], textposition="inside",
             textfont=dict(color="black", size=11)
         ))
+        tope_barra = (
+            pd.to_numeric(df_dia["REPORTES ACUMULADOS AL INICIAR"], errors="coerce").fillna(0)
+            + pd.to_numeric(df_dia["REPORTES RECIBIDOS"], errors="coerce").fillna(0)
+            + pd.to_numeric(df_dia["EN EJECUCION (EE)"], errors="coerce").fillna(0)
+        )
+        tope_barra = tope_barra.where(df_dia["TOTAL REPORTES"].notna(), None)
+
         fig1.add_trace(go.Scatter(
-            x=df_dia["FECHA"], y=df_dia["TOTAL REPORTES"],
-            name="Total Reportes", mode="text+markers",
-            text=df_dia["TOTAL REPORTES"], textposition="top center",
+            x=df_dia["FECHA"],
+            y=tope_barra,
+            name="Total Reportes",
+            mode="text+markers",
+            text=tope_barra,
+            textposition="top center",
             textfont=dict(color="#1F4E78", size=12),
-            marker=dict(size=8, color="rgba(0,0,0,0)"), showlegend=False,
-            connectgaps=False
+            marker=dict(size=8, color="rgba(0,0,0,0)"),
+            showlegend=False,
+            connectgaps=False,
+            cliponaxis=False,
         ))
         fig1.add_trace(go.Scatter(
             x=df_dia["FECHA"], y=df_dia["REPORTES FINALIZADOS"],
