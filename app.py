@@ -59,8 +59,8 @@ def cargar_datos():
 def trazar_turno(df_data, fecha_dia):
     """
     Reconstruye el comportamiento del turno [07:00 AM día D -> 07:00 AM día D+1]
-    con evaluación independiente al inicio (07:00 AM) y al cierre (07:00 AM siguiente),
-    permitiendo que una incidencia abierta en PA y cerrada en EE cuente en ambos.
+    a partir de RECEPCION_DT, H_PA_DT, H_EE_DT y H_FO_DT, sin depender del
+    ESTADO actual del registro.
     """
     base = pd.Timestamp(year=fecha_dia.year, month=fecha_dia.month, day=fecha_dia.day)
     inicio_turno = base + pd.Timedelta(hours=7)
@@ -72,7 +72,8 @@ def trazar_turno(df_data, fecha_dia):
     h_fo_dt = df_data["H_FO_DT"]
 
     # 1. Pendiente al iniciar el corte (07:00 AM):
-    # Estaba en PA al momento de abrir el turno (aún no había pasado a EE ni a FO a las 07:00 AM)
+    # Entró a PA antes o a las 07:00 AM, aún no había pasado a EE a las 07:00 AM,
+    # y aún no había sido atendida (FO) a las 07:00 AM.
     entro_pa_inicio = h_pa_dt.notna() & (h_pa_dt <= inicio_turno)
     no_en_ee_inicio = h_ee_dt.isna() | (h_ee_dt > inicio_turno)
     no_atendida_inicio = h_fo_dt.isna() | (h_fo_dt > inicio_turno)
@@ -81,22 +82,25 @@ def trazar_turno(df_data, fecha_dia):
     # 2. Recibido durante el turno [inicio_turno, fin_turno)
     mask_recibido_turno = rec_dt.notna() & (rec_dt >= inicio_turno) & (rec_dt < fin_turno)
 
-    # 3. Atendido al cerrar el turno (07:00 AM del día siguiente):
-    # Hora de atención/finalización dentro de [inicio_turno, fin_turno)
+    # 3. Atendido durante/al cerrar el turno [inicio_turno, fin_turno)
     mask_atendido_cierre = h_fo_dt.notna() & (h_fo_dt >= inicio_turno) & (h_fo_dt < fin_turno)
 
-    # 4. En Ejecución al cerrar el turno (07:00 AM del día siguiente) - CÁLCULO INDEPENDIENTE:
-    # Había entrado a ejecución antes o al cierre del turno (H_EE_DT <= fin_turno)
-    # y aún no estaba atendida al cierre del turno (H_FO_DT.isna() | (H_FO_DT > fin_turno))
-    entro_ee_cierre = h_ee_dt.notna() & (h_ee_dt <= fin_turno)
-    no_atendida_cierre = h_fo_dt.isna() | (h_fo_dt > fin_turno)
-    mask_ee_cierre = entro_ee_cierre & no_atendida_cierre
+    # 4. En Ejecución en el día/turno (independiente del ESTADO actual):
+    # Entró a ejecución dentro del turno [inicio_turno, fin_turno),
+    # o ya venía en ejecución antes del cierre (H_EE_DT <= fin_turno) sin haber sido atendida antes del turno.
+    entro_ee_en_turno = h_ee_dt.notna() & (h_ee_dt >= inicio_turno) & (h_ee_dt < fin_turno)
+    activa_ee_en_turno = (
+        h_ee_dt.notna()
+        & (h_ee_dt <= fin_turno)
+        & (h_fo_dt.isna() | (h_fo_dt >= inicio_turno))
+    )
+    mask_ee_turno = entro_ee_en_turno | activa_ee_en_turno
 
     # 5. Total: Pendiente al iniciar + Recibido en el turno (sin sumar En Ejecución)
     pendiente = int(mask_pendiente_inicio.sum())
     recibido = int(mask_recibido_turno.sum())
     atendido = int(mask_atendido_cierre.sum())
-    en_ejecucion = int(mask_ee_cierre.sum())
+    en_ejecucion = int(mask_ee_turno.sum())
     total = pendiente + recibido
 
     return {
@@ -110,7 +114,7 @@ def trazar_turno(df_data, fecha_dia):
         "df_pendiente_inicio": df_data[mask_pendiente_inicio].copy(),
         "df_recibido": df_data[mask_recibido_turno].copy(),
         "df_atendido_cierre": df_data[mask_atendido_cierre].copy(),
-        "df_ee_cierre": df_data[mask_ee_cierre].copy(),
+        "df_ee_cierre": df_data[mask_ee_turno].copy(),
     }
 
 
@@ -171,7 +175,7 @@ with tab1:
                 "PENDIENTE INICIO (PA)": None,
                 "RECIBIDO": None,
                 "ATENDIDO CIERRE (FO)": None,
-                "EN EJECUCION CIERRE (EE)": None,
+                "EN EJECUCION TURNO (EE)": None,
                 "TOTAL (PEND+REC)": None,
             })
         else:
@@ -181,7 +185,7 @@ with tab1:
                 "PENDIENTE INICIO (PA)": res["pendiente_inicio"],
                 "RECIBIDO": res["recibido"],
                 "ATENDIDO CIERRE (FO)": res["atendido_cierre"],
-                "EN EJECUCION CIERRE (EE)": res["ee_cierre"],
+                "EN EJECUCION TURNO (EE)": res["ee_cierre"],
                 "TOTAL (PEND+REC)": res["total"],
             })
 
@@ -190,7 +194,7 @@ with tab1:
     rec_vals = pd.to_numeric(df_traza["RECIBIDO"], errors="coerce").dropna()
     at_vals = pd.to_numeric(df_traza["ATENDIDO CIERRE (FO)"], errors="coerce").dropna()
     pend_vals = pd.to_numeric(df_traza["PENDIENTE INICIO (PA)"], errors="coerce").dropna()
-    ee_vals = pd.to_numeric(df_traza["EN EJECUCION CIERRE (EE)"], errors="coerce").dropna()
+    ee_vals = pd.to_numeric(df_traza["EN EJECUCION TURNO (EE)"], errors="coerce").dropna()
 
     prom_rec = float(rec_vals.mean()) if not rec_vals.empty else 0.0
     prom_at = float(at_vals.mean()) if not at_vals.empty else 0.0
@@ -203,7 +207,7 @@ with tab1:
     m1.metric("⏳ Pendiente Inicio (PA)", f"{ult_pend:,}")
     m2.metric("📥 Recibido (Mes)", f"{tot_rec:,}")
     m3.metric("✅ Atendido Cierre (FO)", f"{tot_at:,}")
-    m4.metric("⚙️ En Ejecución Cierre (EE)", f"{ult_ee:,}")
+    m4.metric("⚙️ En Ejecución Turno (EE)", f"{ult_ee:,}")
     m5.metric("📊 Total (Pend+Rec)", f"{ult_pend + tot_rec:,}")
     m6.metric("📈 Prom. Recibido/Día", f"{prom_rec:.1f}")
     m7.metric("📉 Prom. Atendido/Día", f"{prom_at:.1f}")
@@ -213,7 +217,7 @@ with tab1:
     tope_barra = (
         pd.to_numeric(df_traza["PENDIENTE INICIO (PA)"], errors="coerce").fillna(0)
         + pd.to_numeric(df_traza["RECIBIDO"], errors="coerce").fillna(0)
-        + pd.to_numeric(df_traza["EN EJECUCION CIERRE (EE)"], errors="coerce").fillna(0)
+        + pd.to_numeric(df_traza["EN EJECUCION TURNO (EE)"], errors="coerce").fillna(0)
     )
     tope_barra = tope_barra.where(df_traza["TOTAL (PEND+REC)"].notna(), None)
 
@@ -229,9 +233,9 @@ with tab1:
         text=df_traza["RECIBIDO"], textposition="inside",
     ))
     fig.add_trace(go.Bar(
-        x=df_traza["TURNO (07:00 AM)"], y=df_traza["EN EJECUCION CIERRE (EE)"],
-        name="En Ejecución Cierre (EE)", marker_color="#93c5fd",
-        text=df_traza["EN EJECUCION CIERRE (EE)"], textposition="inside",
+        x=df_traza["TURNO (07:00 AM)"], y=df_traza["EN EJECUCION TURNO (EE)"],
+        name="En Ejecución Turno (EE)", marker_color="#93c5fd",
+        text=df_traza["EN EJECUCION TURNO (EE)"], textposition="inside",
     ))
     fig.add_trace(go.Scatter(
         x=df_traza["TURNO (07:00 AM)"], y=tope_barra,
@@ -274,7 +278,7 @@ with tab2:
     a1.metric("Pendiente Inicio (PA)", f"{res['pendiente_inicio']:,}")
     a2.metric("Recibido", f"{res['recibido']:,}")
     a3.metric("Atendido Cierre (FO)", f"{res['atendido_cierre']:,}")
-    a4.metric("En Ejecución Cierre (EE)", f"{res['ee_cierre']:,}")
+    a4.metric("En Ejecución Turno (EE)", f"{res['ee_cierre']:,}")
     a5.metric("Total (Pend+Rec)", f"{res['total']:,}")
 
     st.markdown("#### ⏳ Pendiente al Iniciar el Corte (07:00 AM)")
@@ -286,7 +290,7 @@ with tab2:
     st.markdown("#### ✅ Atendido al Cerrar el Turno (07:00 AM siguiente)")
     mostrar_tabla(res["df_atendido_cierre"], "at_cie")
 
-    st.markdown("#### ⚙️ En Ejecución al Cerrar el Turno (07:00 AM siguiente)")
+    st.markdown("#### ⚙️ En Ejecución en el Turno (EE)")
     mostrar_tabla(res["df_ee_cierre"], "ee_cie")
 
 with tab3:
