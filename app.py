@@ -43,7 +43,6 @@ def cargar_datos():
     df["RECEPCION_DT"] = _parsear_dt(df, "RECEPCIÓN")
     df["FINALIZACION_DT"] = _parsear_dt(df, "FINALIZACIÓN")
 
-    # Horas calculadas por etapa (sin depender del ESTADO actual)
     df["H_PA_DT"] = _parsear_dt(df, "H_PA")
     if df["H_PA_DT"].isna().all():
         df["H_PA_DT"] = df["RECEPCION_DT"]
@@ -59,8 +58,9 @@ def cargar_datos():
 
 def trazar_turno(df_data, fecha_dia):
     """
-    Reconstruye el comportamiento real del turno [07:00 AM día D -> 07:00 AM día D+1]
-    a partir de RECEPCION_DT, H_PA_DT, H_EE_DT y H_FO_DT.
+    Reconstruye el comportamiento del turno [07:00 AM día D -> 07:00 AM día D+1]
+    con evaluación independiente al inicio (07:00 AM) y al cierre (07:00 AM siguiente),
+    permitiendo que una incidencia abierta en PA y cerrada en EE cuente en ambos.
     """
     base = pd.Timestamp(year=fecha_dia.year, month=fecha_dia.month, day=fecha_dia.day)
     inicio_turno = base + pd.Timedelta(hours=7)
@@ -72,8 +72,7 @@ def trazar_turno(df_data, fecha_dia):
     h_fo_dt = df_data["H_FO_DT"]
 
     # 1. Pendiente al iniciar el corte (07:00 AM):
-    # Entró a PA antes o a las 07:00 AM, aún no había pasado a EE a las 07:00 AM,
-    # y aún no había sido atendida (FO) a las 07:00 AM.
+    # Estaba en PA al momento de abrir el turno (aún no había pasado a EE ni a FO a las 07:00 AM)
     entro_pa_inicio = h_pa_dt.notna() & (h_pa_dt <= inicio_turno)
     no_en_ee_inicio = h_ee_dt.isna() | (h_ee_dt > inicio_turno)
     no_atendida_inicio = h_fo_dt.isna() | (h_fo_dt > inicio_turno)
@@ -83,12 +82,12 @@ def trazar_turno(df_data, fecha_dia):
     mask_recibido_turno = rec_dt.notna() & (rec_dt >= inicio_turno) & (rec_dt < fin_turno)
 
     # 3. Atendido al cerrar el turno (07:00 AM del día siguiente):
-    # La hora de atención/finalización ocurrió dentro del turno [inicio_turno, fin_turno)
+    # Hora de atención/finalización dentro de [inicio_turno, fin_turno)
     mask_atendido_cierre = h_fo_dt.notna() & (h_fo_dt >= inicio_turno) & (h_fo_dt < fin_turno)
 
-    # 4. En Ejecución al cerrar el turno (07:00 AM del día siguiente):
-    # Ya había entrado a ejecución antes o al cierre del turno (H_EE_DT <= fin_turno)
-    # y aún no estaba atendida al cierre del turno (H_FO_DT.isna() | (H_FO_DT > fin_turno)).
+    # 4. En Ejecución al cerrar el turno (07:00 AM del día siguiente) - CÁLCULO INDEPENDIENTE:
+    # Había entrado a ejecución antes o al cierre del turno (H_EE_DT <= fin_turno)
+    # y aún no estaba atendida al cierre del turno (H_FO_DT.isna() | (H_FO_DT > fin_turno))
     entro_ee_cierre = h_ee_dt.notna() & (h_ee_dt <= fin_turno)
     no_atendida_cierre = h_fo_dt.isna() | (h_fo_dt > fin_turno)
     mask_ee_cierre = entro_ee_cierre & no_atendida_cierre
