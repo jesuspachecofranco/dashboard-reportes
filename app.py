@@ -107,50 +107,50 @@ def cargar_excel_completo():
     hojas = {h.strip().lower(): h for h in xl.sheet_names}
 
     datos = {
-        "zonas": {
+        "iribarren": {
             "consolidado": pd.DataFrame(),
             "resumen": pd.DataFrame(),
             "matriz": pd.DataFrame(),
         },
-        "municipios": {
+        "foraneos": {
             "consolidado": pd.DataFrame(),
             "resumen": pd.DataFrame(),
             "matriz": pd.DataFrame(),
         },
     }
 
-    # --- BLOQUE ZONAS ---
+    # --- BLOQUE IRIBARREN (Hojas de Zonas) ---
     if "consolidado zonas" in hojas:
-        datos["zonas"]["consolidado"] = _limpiar_consolidado(
+        datos["iribarren"]["consolidado"] = _limpiar_consolidado(
             pd.read_excel(xl, sheet_name=hojas["consolidado zonas"], dtype=str), "ZONA"
         )
     if "resumen diario 6am" in hojas:
-        datos["zonas"]["resumen"] = _limpiar_resumen(
+        datos["iribarren"]["resumen"] = _limpiar_resumen(
             pd.read_excel(xl, sheet_name=hojas["resumen diario 6am"])
         )
     if "matriz zonas 6am" in hojas:
-        datos["zonas"]["matriz"] = _limpiar_matriz(
+        datos["iribarren"]["matriz"] = _limpiar_matriz(
             pd.read_excel(xl, sheet_name=hojas["matriz zonas 6am"]), "ZONA"
         )
 
-    # --- BLOQUE MUNICIPIOS ---
+    # --- BLOQUE FORÁNEOS (Hojas de Municipios) ---
     for posible_cons in ["consolidado municipios", "consolidado municipio"]:
         if posible_cons in hojas:
-            datos["municipios"]["consolidado"] = _limpiar_consolidado(
+            datos["foraneos"]["consolidado"] = _limpiar_consolidado(
                 pd.read_excel(xl, sheet_name=hojas[posible_cons], dtype=str), "MUNICIPIO"
             )
             break
 
     for posible_res in ["resumen municipios 6am", "resumen municipio 6am"]:
         if posible_res in hojas:
-            datos["municipios"]["resumen"] = _limpiar_resumen(
+            datos["foraneos"]["resumen"] = _limpiar_resumen(
                 pd.read_excel(xl, sheet_name=hojas[posible_res]), col_entidad="MUNICIPIO"
             )
             break
 
     for posible_mat in ["matriz municipios 6am", "matriz municipio 6am"]:
         if posible_mat in hojas:
-            datos["municipios"]["matriz"] = _limpiar_matriz(
+            datos["foraneos"]["matriz"] = _limpiar_matriz(
                 pd.read_excel(xl, sheet_name=hojas[posible_mat]), "MUNICIPIO"
             )
             break
@@ -172,39 +172,39 @@ with st.sidebar:
     st.header("🧭 Ámbito de Análisis")
     ambito = st.radio(
         "Seleccione el conjunto de datos:",
-        options=["Zonas", "Municipios"],
+        options=["Iribarren", "Foráneos"],
         index=0,
         key="selector_ambito",
     )
-    st.caption("Los datos de Zonas y Municipios se analizan por separado.")
+    st.caption("Los datos de Iribarren (Zonas) y Foráneos (Municipios) se analizan por separado.")
 
-if ambito == "Zonas":
-    df_consolidado = datos["zonas"]["consolidado"]
-    df_resumen = datos["zonas"]["resumen"]
-    df_matriz = datos["zonas"]["matriz"]
+if ambito == "Iribarren":
+    df_consolidado = datos["iribarren"]["consolidado"]
+    df_resumen = datos["iribarren"]["resumen"]
+    df_matriz = datos["iribarren"]["matriz"]
     col_entidad = "ZONA"
     etiqueta_entidad = "Zona"
-    etiqueta_plural = "Zonas"
+    etiqueta_listado = "Zonas"
+    sufijo_key = "iribarren"
 else:
-    df_consolidado = datos["municipios"]["consolidado"]
-    df_resumen = datos["municipios"]["resumen"]
-    df_matriz = datos["municipios"]["matriz"]
+    df_consolidado = datos["foraneos"]["consolidado"]
+    df_resumen = datos["foraneos"]["resumen"]
+    df_matriz = datos["foraneos"]["matriz"]
     col_entidad = "MUNICIPIO"
     etiqueta_entidad = "Municipio"
-    etiqueta_plural = "Municipios"
-
-sufijo_key = ambito.lower()
+    etiqueta_listado = "Municipios"
+    sufijo_key = "foraneos"
 
 
 # ==========================================
 # 3. PESTAÑAS PRINCIPALES
 # ==========================================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    f"📅 Seguimiento Diario ({etiqueta_plural})",
-    f"📈 Seguimiento Anual ({etiqueta_plural})",
-    f"⏳ PA por Motivo ({etiqueta_plural})",
-    f"🗺️ Matriz {etiqueta_plural} (6 AM)",
-    f"🔍 Buscador Consolidado ({etiqueta_plural})",
+    f"📅 Seguimiento Diario ({ambito})",
+    f"📈 Seguimiento Anual ({ambito})",
+    f"⏳ PA por Motivo ({ambito})",
+    f"🗺️ Matriz {etiqueta_listado} (6 AM)",
+    f"🔍 Buscador Consolidado ({ambito})",
 ])
 
 
@@ -212,9 +212,9 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1: SEGUIMIENTO DIARIO
 # ------------------------------------------
 with tab1:
-    st.subheader(f"📅 Comportamiento Diario ({etiqueta_plural}) — Corte 6:00 AM")
+    st.subheader(f"📅 Comportamiento Diario ({ambito}) — Corte 6:00 AM")
     if df_resumen.empty:
-        st.info(f"No hay registros cargados en el resumen diario de {etiqueta_plural}.")
+        st.info(f"No hay registros cargados en el resumen diario de {ambito}.")
     else:
         tiene_col_entidad = col_entidad in df_resumen.columns
 
@@ -226,7 +226,6 @@ with tab1:
             if entidad_sel != "TODOS":
                 df_res_base = df_resumen[df_resumen[col_entidad] == entidad_sel].copy()
             else:
-                # Consolidar sumando todos los municipios por fecha operativa
                 df_res_base = (
                     df_resumen.groupby(["FECHA_DT", "ANIO", "MES"], as_index=False)
                     .agg({
@@ -264,6 +263,7 @@ with tab1:
             (df_res_base["ANIO"] == anio_sel) & (df_res_base["MES"] == mes_sel)
         ].copy()
 
+        rango_activo = None
         if not df_mes.empty:
             min_f = df_mes["FECHA_DT"].min().date()
             max_f = df_mes["FECHA_DT"].max().date()
@@ -276,6 +276,7 @@ with tab1:
                     key=f"t1_rango_{sufijo_key}",
                 )
             if isinstance(rango_fechas, tuple) and len(rango_fechas) == 2:
+                rango_activo = rango_fechas
                 df_mes = df_mes[
                     (df_mes["FECHA_DT"].dt.date >= rango_fechas[0])
                     & (df_mes["FECHA_DT"].dt.date <= rango_fechas[1])
@@ -354,7 +355,7 @@ with tab1:
                 mode="lines", line=dict(color="#16a34a", width=2.5, dash="dot"),
             ))
             fig1.update_layout(
-                title=f"<b>Flujo Diario ({etiqueta_plural}{subtitulo_ent}) — {mes_nombre_sel} {anio_sel}</b>",
+                title=f"<b>Flujo Diario ({ambito}{subtitulo_ent}) — {mes_nombre_sel} {anio_sel}</b>",
                 barmode="stack",
                 xaxis_title="<b>Fecha Operativa</b>",
                 yaxis_title="<b>Cantidad</b>",
@@ -362,6 +363,77 @@ with tab1:
                 legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
             )
             st.plotly_chart(fig1, use_container_width=True, key=f"fig_diario_{sufijo_key}")
+
+            # --- RANKING COMPARATIVO POR MUNICIPIO (EN ÁMBITO FORÁNEOS Y "TODOS") ---
+            if ambito == "Foráneos" and tiene_col_entidad and entidad_sel == "TODOS":
+                st.divider()
+                st.markdown(f"### 🏆 Ranking Comparativo por Municipio — {mes_nombre_sel} {anio_sel}")
+                df_mun_periodo = df_resumen[
+                    (df_resumen["ANIO"] == anio_sel) & (df_resumen["MES"] == mes_sel)
+                ].copy()
+                if rango_activo is not None:
+                    df_mun_periodo = df_mun_periodo[
+                        (df_mun_periodo["FECHA_DT"].dt.date >= rango_activo[0])
+                        & (df_mun_periodo["FECHA_DT"].dt.date <= rango_activo[1])
+                    ].copy()
+
+                if not df_mun_periodo.empty:
+                    df_mun_periodo = df_mun_periodo.sort_values("FECHA_DT")
+                    ranking_mun = (
+                        df_mun_periodo.groupby(col_entidad, as_index=False)
+                        .agg(
+                            PENDIENTES_CIERRE=("PENDIENTES CIERRE (6 AM)", "last"),
+                            RECIBIDOS_TOTAL=("RECIBIDOS", "sum"),
+                            FINALIZADOS_TOTAL=("FINALIZADOS", "sum"),
+                        )
+                    )
+
+                    col_rk1, col_rk2 = st.columns(2)
+                    with col_rk1:
+                        rk_pend = ranking_mun.sort_values("PENDIENTES_CIERRE", ascending=True)
+                        fig_rk_pend = px.bar(
+                            rk_pend,
+                            x="PENDIENTES_CIERRE",
+                            y=col_entidad,
+                            orientation="h",
+                            text="PENDIENTES_CIERRE",
+                            title="Pendientes al Cierre (6 AM) por Municipio",
+                        )
+                        fig_rk_pend.update_traces(
+                            marker_color="#b91c1c",
+                            textposition="outside",
+                            cliponaxis=False,
+                        )
+                        fig_rk_pend.update_layout(
+                            xaxis_title="<b>Pendientes Cierre (6 AM)</b>",
+                            yaxis_title="<b>Municipio</b>",
+                            height=max(320, len(rk_pend) * 34),
+                            margin=dict(r=40),
+                        )
+                        st.plotly_chart(fig_rk_pend, use_container_width=True, key="fig_rk_mun_pend")
+
+                    with col_rk2:
+                        rk_rec = ranking_mun.sort_values("RECIBIDOS_TOTAL", ascending=True)
+                        fig_rk_rec = px.bar(
+                            rk_rec,
+                            x="RECIBIDOS_TOTAL",
+                            y=col_entidad,
+                            orientation="h",
+                            text="RECIBIDOS_TOTAL",
+                            title="Recibidos Acumulados por Municipio",
+                        )
+                        fig_rk_rec.update_traces(
+                            marker_color="#1f4e78",
+                            textposition="outside",
+                            cliponaxis=False,
+                        )
+                        fig_rk_rec.update_layout(
+                            xaxis_title="<b>Total Recibidos</b>",
+                            yaxis_title="<b>Municipio</b>",
+                            height=max(320, len(rk_rec) * 34),
+                            margin=dict(r=40),
+                        )
+                        st.plotly_chart(fig_rk_rec, use_container_width=True, key="fig_rk_mun_rec")
 
             cols_tabla_res = [
                 col_entidad if (tiene_col_entidad and entidad_sel != "TODOS") else None,
@@ -381,7 +453,7 @@ with tab1:
             with pd.ExcelWriter(buf_d, engine="openpyxl") as writer:
                 df_mes[cols_tabla_res].to_excel(writer, index=False, sheet_name="Seguimiento_Diario")
             st.download_button(
-                f"⬇️ Descargar Seguimiento Diario {etiqueta_plural} (.xlsx)",
+                f"⬇️ Descargar Seguimiento Diario {ambito} (.xlsx)",
                 buf_d.getvalue(),
                 file_name=f"seguimiento_diario_{sufijo_key}_{mes_nombre_sel.lower()}_{anio_sel}.xlsx",
                 key=f"dl_diario_{sufijo_key}",
@@ -392,9 +464,9 @@ with tab1:
 # TAB 2: SEGUIMIENTO ANUAL
 # ------------------------------------------
 with tab2:
-    st.subheader(f"📈 Seguimiento Mensual Acumulado ({etiqueta_plural})")
+    st.subheader(f"📈 Seguimiento Mensual Acumulado ({ambito})")
     if df_resumen.empty:
-        st.info(f"No hay registros cargados en el resumen diario de {etiqueta_plural}.")
+        st.info(f"No hay registros cargados en el resumen diario de {ambito}.")
     else:
         tiene_col_entidad = col_entidad in df_resumen.columns
         if tiene_col_entidad:
@@ -491,7 +563,7 @@ with tab2:
                 marker=dict(size=6, color=COLOR_FINALIZADOS), line=dict(color=COLOR_FINALIZADOS, width=2),
             ))
             fig_anual.update_layout(
-                title=f"<b>Evolución Mensual Acumulada ({etiqueta_plural}{subtitulo_y}) — {anio_anual}</b>",
+                title=f"<b>Evolución Mensual Acumulada ({ambito}{subtitulo_y}) — {anio_anual}</b>",
                 barmode="stack",
                 xaxis_title="<b>Mes</b>",
                 yaxis_title="<b>Cantidad</b>",
@@ -505,15 +577,15 @@ with tab2:
 # TAB 3: PENDIENTES (PA) POR MOTIVO
 # ------------------------------------------
 with tab3:
-    st.subheader(f"⏳ Incidencias Pendientes (PA) por Motivo — {etiqueta_plural}")
+    st.subheader(f"⏳ Incidencias Pendientes (PA) por Motivo — {ambito}")
     if df_consolidado.empty:
-        st.info(f"La hoja de consolidado de {etiqueta_plural} está vacía.")
+        st.info(f"La hoja de consolidado de {ambito} está vacía.")
     else:
         df_pa = df_consolidado[df_consolidado["ESTADO"] == "PA"].copy() if "ESTADO" in df_consolidado.columns else df_consolidado.copy()
 
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
-            opciones_ent = ["TODAS" if ambito == "Zonas" else "TODOS"] + (
+            opciones_ent = ["TODAS" if ambito == "Iribarren" else "TODOS"] + (
                 sorted([e for e in df_pa[col_entidad].unique() if e]) if col_entidad in df_pa.columns else []
             )
             ent_pa_sel = st.selectbox(f"Filtrar por {etiqueta_entidad}:", opciones_ent, key=f"t3_ent_{sufijo_key}")
@@ -531,7 +603,7 @@ with tab3:
         if mes_pa_sel != "TODOS" and "MES RECIBIDO" in df_pa.columns:
             df_pa = df_pa[df_pa["MES RECIBIDO"] == mes_pa_sel]
 
-        st.metric(f"⏳ Total Incidencias PA ({etiqueta_plural})", f"{len(df_pa):,}")
+        st.metric(f"⏳ Total Incidencias PA ({ambito})", f"{len(df_pa):,}")
 
         if not df_pa.empty and "MOTIVO" in df_pa.columns:
             motivos = df_pa["MOTIVO"].replace("", "SIN MOTIVO")
@@ -560,7 +632,7 @@ with tab3:
                     y="MOTIVO",
                     orientation="h",
                     text="PENDIENTES (PA)",
-                    title=f"Distribución de Pendientes (PA) por Motivo ({etiqueta_plural})",
+                    title=f"Distribución de Pendientes (PA) por Motivo ({ambito})",
                 )
                 fig_pa_mot.update_traces(marker_color="#b91c1c", textposition="outside", cliponaxis=False)
                 fig_pa_mot.update_layout(
@@ -571,7 +643,7 @@ with tab3:
                 )
                 st.plotly_chart(fig_pa_mot, use_container_width=True, key=f"fig_pa_mot_{sufijo_key}")
 
-            with st.expander(f"Ver listado detallado de incidencias PA ({etiqueta_plural})"):
+            with st.expander(f"Ver listado detallado de incidencias PA ({ambito})"):
                 cols_pa_det = [
                     c for c in ["INCIDENCIA", col_entidad, "RECEPCIÓN", "MOTIVO", "DIRECCIÓN", "CLIENTE", "TEC", "TCR"]
                     if c in df_pa.columns
@@ -585,9 +657,9 @@ with tab3:
 # TAB 4: MATRIZ ZONAS / MUNICIPIOS (6 AM)
 # ------------------------------------------
 with tab4:
-    st.subheader(f"🗺️ Matriz de Pendientes por {etiqueta_entidad} (Corte 6:00 AM)")
+    st.subheader(f"🗺️ Matriz de Pendientes por {etiqueta_entidad} — {ambito} (Corte 6:00 AM)")
     if df_matriz.empty:
-        st.info(f"La hoja de matriz de {etiqueta_plural} no tiene datos.")
+        st.info(f"La matriz de {etiqueta_listado} ({ambito}) no tiene datos.")
     else:
         cols_fecha_mat = [c for c in df_matriz.columns if c != col_entidad]
         df_mat_ent = df_matriz[df_matriz[col_entidad] != "TOTALES"].copy()
@@ -617,7 +689,7 @@ with tab4:
                 mes_mat_nombre = st.selectbox("Mes:", nombres_mm, index=idx_mm, key=f"t4_mes_{sufijo_key}")
                 mes_mat = [k for k, v in meses_es.items() if v == mes_mat_nombre][0]
             with cm3:
-                todas_lbl = "TODAS" if ambito == "Zonas" else "TODOS"
+                todas_lbl = "TODAS" if ambito == "Iribarren" else "TODOS"
                 entidades_m = [todas_lbl] + sorted(df_long[col_entidad].unique().tolist())
                 ent_mat = st.selectbox(f"{etiqueta_entidad}:", entidades_m, key=f"t4_ent_{sufijo_key}")
 
@@ -654,11 +726,11 @@ with tab4:
 # TAB 5: BUSCADOR EN CONSOLIDADO
 # ------------------------------------------
 with tab5:
-    st.subheader(f"🔍 Buscador en Consolidado {etiqueta_plural}")
+    st.subheader(f"🔍 Buscador en Consolidado ({ambito} — {etiqueta_listado})")
     if df_consolidado.empty:
-        st.info(f"No hay datos en el consolidado de {etiqueta_plural}.")
+        st.info(f"No hay datos en el consolidado de {ambito}.")
     else:
-        todas_b = "TODAS" if ambito == "Zonas" else "TODOS"
+        todas_b = "TODAS" if ambito == "Iribarren" else "TODOS"
         cb1, cb2, cb3, cb4 = st.columns(4)
         with cb1:
             f_inc = st.text_input("Nº Incidencia:", placeholder="Ej. 926117", key=f"t5_inc_{sufijo_key}")
