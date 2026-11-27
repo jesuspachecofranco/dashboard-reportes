@@ -1,5 +1,3 @@
-import calendar
-from datetime import datetime
 import io
 import os
 import pandas as pd
@@ -8,7 +6,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 st.set_page_config(
-    page_title="Dashboard de Incidencias 2026 (Corte 6:00 AM)",
+    page_title="Dashboard de Incidencias (Corte 6:00 AM)",
     page_icon="📊",
     layout="wide",
 )
@@ -16,93 +14,10 @@ st.set_page_config(
 st.title("📊 Control y Seguimiento de Incidencias — Corte 6:00 AM")
 
 ARCHIVO_EXCEL = "resultado_unificado.xlsx"
-
-
-# ==========================================
-# 1. CARGA DE LAS 3 HOJAS DEL EXCEL
-# ==========================================
-@st.cache_data
-def cargar_excel_completo():
-    if not os.path.exists(ARCHIVO_EXCEL):
-        return None, None, None
-
-    xl = pd.ExcelFile(ARCHIVO_EXCEL)
-    hojas = {h.strip().lower(): h for h in xl.sheet_names}
-
-    # 1. Hoja Consolidado Zonas
-    df_consolidado = pd.DataFrame()
-    nombre_cons = hojas.get("consolidado zonas")
-    if nombre_cons:
-        df_consolidado = pd.read_excel(xl, sheet_name=nombre_cons, dtype=str)
-        for col in df_consolidado.columns:
-            df_consolidado[col] = df_consolidado[col].fillna("").astype(str).str.strip()
-            df_consolidado[col] = df_consolidado[col].replace(["NAN", "NONE", "NAT"], "", regex=False)
-        if "ESTADO" in df_consolidado.columns:
-            df_consolidado["ESTADO"] = df_consolidado["ESTADO"].str.upper()
-        if "ZONA" in df_consolidado.columns:
-            df_consolidado["ZONA"] = df_consolidado["ZONA"].str.upper()
-        if "RECEPCIÓN" in df_consolidado.columns:
-            df_consolidado["RECEPCION_DT"] = pd.to_datetime(
-                df_consolidado["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
-            )
-        if "FINALIZACIÓN" in df_consolidado.columns:
-            df_consolidado["FINALIZACION_DT"] = pd.to_datetime(
-                df_consolidado["FINALIZACIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
-            )
-
-    # 2. Hoja Resumen Diario 6AM
-    df_resumen = pd.DataFrame()
-    nombre_res = hojas.get("resumen diario 6am")
-    if nombre_res:
-        df_resumen = pd.read_excel(xl, sheet_name=nombre_res)
-        df_resumen.columns = [str(c).strip().upper() for c in df_resumen.columns]
-        if "FECHA OPERATIVA" in df_resumen.columns:
-            df_resumen["FECHA_DT"] = pd.to_datetime(
-                df_resumen["FECHA OPERATIVA"].astype(str).str.strip(),
-                format="%d-%m-%Y",
-                errors="coerce",
-            )
-            # Respaldo si viene en formato YYYY-MM-DD
-            mask_nat = df_resumen["FECHA_DT"].isna()
-            if mask_nat.any():
-                df_resumen.loc[mask_nat, "FECHA_DT"] = pd.to_datetime(
-                    df_resumen.loc[mask_nat, "FECHA OPERATIVA"], errors="coerce"
-                )
-            df_resumen = df_resumen.dropna(subset=["FECHA_DT"]).sort_values("FECHA_DT").reset_index(drop=True)
-            df_resumen["ANIO"] = df_resumen["FECHA_DT"].dt.year
-            df_resumen["MES"] = df_resumen["FECHA_DT"].dt.month
-
-        cols_num = [
-            "PENDIENTES INICIO (6 AM)",
-            "RECIBIDOS",
-            "FINALIZADOS",
-            "EN EJECUCIÓN CIERRE (6 AM)",
-            "PENDIENTES CIERRE (6 AM)",
-        ]
-        for c in cols_num:
-            if c in df_resumen.columns:
-                df_resumen[c] = pd.to_numeric(df_resumen[c], errors="coerce").fillna(0).astype(int)
-
-        if "PENDIENTES INICIO (6 AM)" in df_resumen.columns and "RECIBIDOS" in df_resumen.columns:
-            df_resumen["TOTAL"] = df_resumen["PENDIENTES INICIO (6 AM)"] + df_resumen["RECIBIDOS"]
-
-    # 3. Hoja Matriz Zonas 6AM
-    df_matriz = pd.DataFrame()
-    nombre_mat = hojas.get("matriz zonas 6am")
-    if nombre_mat:
-        df_matriz = pd.read_excel(xl, sheet_name=nombre_mat)
-        df_matriz.columns = [str(c).strip() for c in df_matriz.columns]
-        if "ZONA" in df_matriz.columns:
-            df_matriz["ZONA"] = df_matriz["ZONA"].fillna("").astype(str).str.strip().str.upper()
-
-    return df_consolidado, df_resumen, df_matriz
-
-
-df_consolidado, df_resumen, df_matriz = cargar_excel_completo()
-
-if df_consolidado is None:
-    st.warning(f"⚠️ No se encontró el archivo `{ARCHIVO_EXCEL}`. Genera el archivo desde tu procesador de TXT y recarga.")
-    st.stop()
+COLOR_PA_INICIO = "#D9E2F3"
+COLOR_RECIBIDOS = "#e9f056"
+COLOR_EE_CIERRE = "#93c5fd"
+COLOR_FINALIZADOS = "#1d4ed8"
 
 meses_es = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
@@ -113,47 +28,242 @@ meses_upper = {k: v.upper() for k, v in meses_es.items()}
 
 
 # ==========================================
-# 2. PESTAÑAS PRINCIPALES
+# 1. FUNCIONES DE LIMPIEZA Y CARGA DE HOJAS
+# ==========================================
+def _limpiar_consolidado(df, col_entidad):
+    if df.empty:
+        return df
+    for col in df.columns:
+        df[col] = df[col].fillna("").astype(str).str.strip()
+        df[col] = df[col].replace(["NAN", "NONE", "NAT"], "", regex=False)
+    if "ESTADO" in df.columns:
+        df["ESTADO"] = df["ESTADO"].str.upper()
+    if col_entidad in df.columns:
+        df[col_entidad] = df[col_entidad].str.upper()
+    if "RECEPCIÓN" in df.columns:
+        df["RECEPCION_DT"] = pd.to_datetime(
+            df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
+        )
+    if "FINALIZACIÓN" in df.columns:
+        df["FINALIZACION_DT"] = pd.to_datetime(
+            df["FINALIZACIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
+        )
+    return df
+
+
+def _limpiar_resumen(df, col_entidad=None):
+    if df.empty:
+        return df
+    df.columns = [str(c).strip().upper() for c in df.columns]
+    if col_entidad and col_entidad in df.columns:
+        df[col_entidad] = df[col_entidad].fillna("").astype(str).str.strip().str.upper()
+    if "FECHA OPERATIVA" in df.columns:
+        df["FECHA_DT"] = pd.to_datetime(
+            df["FECHA OPERATIVA"].astype(str).str.strip(),
+            format="%d-%m-%Y",
+            errors="coerce",
+        )
+        mask_nat = df["FECHA_DT"].isna()
+        if mask_nat.any():
+            df.loc[mask_nat, "FECHA_DT"] = pd.to_datetime(
+                df.loc[mask_nat, "FECHA OPERATIVA"], errors="coerce"
+            )
+        df = df.dropna(subset=["FECHA_DT"]).sort_values("FECHA_DT").reset_index(drop=True)
+        df["ANIO"] = df["FECHA_DT"].dt.year
+        df["MES"] = df["FECHA_DT"].dt.month
+
+    cols_num = [
+        "PENDIENTES INICIO (6 AM)",
+        "RECIBIDOS",
+        "FINALIZADOS",
+        "EN EJECUCIÓN CIERRE (6 AM)",
+        "PENDIENTES CIERRE (6 AM)",
+    ]
+    for c in cols_num:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
+
+    if "PENDIENTES INICIO (6 AM)" in df.columns and "RECIBIDOS" in df.columns:
+        df["TOTAL"] = df["PENDIENTES INICIO (6 AM)"] + df["RECIBIDOS"]
+
+    return df
+
+
+def _limpiar_matriz(df, col_entidad):
+    if df.empty:
+        return df
+    df.columns = [str(c).strip() for c in df.columns]
+    if col_entidad in df.columns:
+        df[col_entidad] = df[col_entidad].fillna("").astype(str).str.strip().str.upper()
+    return df
+
+
+@st.cache_data
+def cargar_excel_completo():
+    if not os.path.exists(ARCHIVO_EXCEL):
+        return None
+
+    xl = pd.ExcelFile(ARCHIVO_EXCEL)
+    hojas = {h.strip().lower(): h for h in xl.sheet_names}
+
+    datos = {
+        "zonas": {
+            "consolidado": pd.DataFrame(),
+            "resumen": pd.DataFrame(),
+            "matriz": pd.DataFrame(),
+        },
+        "municipios": {
+            "consolidado": pd.DataFrame(),
+            "resumen": pd.DataFrame(),
+            "matriz": pd.DataFrame(),
+        },
+    }
+
+    # --- BLOQUE ZONAS ---
+    if "consolidado zonas" in hojas:
+        datos["zonas"]["consolidado"] = _limpiar_consolidado(
+            pd.read_excel(xl, sheet_name=hojas["consolidado zonas"], dtype=str), "ZONA"
+        )
+    if "resumen diario 6am" in hojas:
+        datos["zonas"]["resumen"] = _limpiar_resumen(
+            pd.read_excel(xl, sheet_name=hojas["resumen diario 6am"])
+        )
+    if "matriz zonas 6am" in hojas:
+        datos["zonas"]["matriz"] = _limpiar_matriz(
+            pd.read_excel(xl, sheet_name=hojas["matriz zonas 6am"]), "ZONA"
+        )
+
+    # --- BLOQUE MUNICIPIOS ---
+    for posible_cons in ["consolidado municipios", "consolidado municipio"]:
+        if posible_cons in hojas:
+            datos["municipios"]["consolidado"] = _limpiar_consolidado(
+                pd.read_excel(xl, sheet_name=hojas[posible_cons], dtype=str), "MUNICIPIO"
+            )
+            break
+
+    for posible_res in ["resumen municipios 6am", "resumen municipio 6am"]:
+        if posible_res in hojas:
+            datos["municipios"]["resumen"] = _limpiar_resumen(
+                pd.read_excel(xl, sheet_name=hojas[posible_res]), col_entidad="MUNICIPIO"
+            )
+            break
+
+    for posible_mat in ["matriz municipios 6am", "matriz municipio 6am"]:
+        if posible_mat in hojas:
+            datos["municipios"]["matriz"] = _limpiar_matriz(
+                pd.read_excel(xl, sheet_name=hojas[posible_mat]), "MUNICIPIO"
+            )
+            break
+
+    return datos
+
+
+datos = cargar_excel_completo()
+
+if datos is None:
+    st.warning(f"⚠️ No se encontró el archivo `{ARCHIVO_EXCEL}`. Genera el archivo desde tu procesador de TXT y recarga.")
+    st.stop()
+
+
+# ==========================================
+# 2. SELECTOR PRINCIPAL DE ÁMBITO (SEPARADO)
+# ==========================================
+with st.sidebar:
+    st.header("🧭 Ámbito de Análisis")
+    ambito = st.radio(
+        "Seleccione el conjunto de datos:",
+        options=["Zonas", "Municipios"],
+        index=0,
+        key="selector_ambito",
+    )
+    st.caption("Los datos de Zonas y Municipios se analizan por separado.")
+
+if ambito == "Zonas":
+    df_consolidado = datos["zonas"]["consolidado"]
+    df_resumen = datos["zonas"]["resumen"]
+    df_matriz = datos["zonas"]["matriz"]
+    col_entidad = "ZONA"
+    etiqueta_entidad = "Zona"
+    etiqueta_plural = "Zonas"
+else:
+    df_consolidado = datos["municipios"]["consolidado"]
+    df_resumen = datos["municipios"]["resumen"]
+    df_matriz = datos["municipios"]["matriz"]
+    col_entidad = "MUNICIPIO"
+    etiqueta_entidad = "Municipio"
+    etiqueta_plural = "Municipios"
+
+sufijo_key = ambito.lower()
+
+
+# ==========================================
+# 3. PESTAÑAS PRINCIPALES
 # ==========================================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📅 Seguimiento Diario (6 AM)",
-    "📈 Seguimiento Anual",
-    "⏳ PA por Motivo",
-    "🗺️ Matriz Zonas (6 AM)",
-    "🔍 Buscador Consolidado",
+    f"📅 Seguimiento Diario ({etiqueta_plural})",
+    f"📈 Seguimiento Anual ({etiqueta_plural})",
+    f"⏳ PA por Motivo ({etiqueta_plural})",
+    f"🗺️ Matriz {etiqueta_plural} (6 AM)",
+    f"🔍 Buscador Consolidado ({etiqueta_plural})",
 ])
 
 
 # ------------------------------------------
-# TAB 1: SEGUIMIENTO DIARIO (Resumen Diario 6AM)
+# TAB 1: SEGUIMIENTO DIARIO
 # ------------------------------------------
 with tab1:
-    st.subheader("📅 Comportamiento Diario — Corte 6:00 AM")
+    st.subheader(f"📅 Comportamiento Diario ({etiqueta_plural}) — Corte 6:00 AM")
     if df_resumen.empty:
-        st.info("La hoja 'Resumen Diario 6AM' no tiene registros.")
+        st.info(f"No hay registros cargados en el resumen diario de {etiqueta_plural}.")
     else:
-        anios_disp = sorted(df_resumen["ANIO"].dropna().unique().astype(int).tolist())
-        idx_anio = anios_disp.index(2026) if 2026 in anios_disp else len(anios_disp) - 1
+        tiene_col_entidad = col_entidad in df_resumen.columns
 
-        col_f1, col_f2, col_f3 = st.columns([1, 1, 2])
+        if tiene_col_entidad:
+            col_f0, col_f1, col_f2, col_f3 = st.columns([1.2, 0.9, 1.0, 1.6])
+            entidades_res = ["TODOS"] + sorted([e for e in df_resumen[col_entidad].unique() if e])
+            with col_f0:
+                entidad_sel = st.selectbox(f"{etiqueta_entidad}:", entidades_res, key=f"t1_ent_{sufijo_key}")
+            if entidad_sel != "TODOS":
+                df_res_base = df_resumen[df_resumen[col_entidad] == entidad_sel].copy()
+            else:
+                # Consolidar sumando todos los municipios por fecha operativa
+                df_res_base = (
+                    df_resumen.groupby(["FECHA_DT", "ANIO", "MES"], as_index=False)
+                    .agg({
+                        "FECHA OPERATIVA": "first",
+                        "VENTANA TURNO": "first",
+                        "PENDIENTES INICIO (6 AM)": "sum",
+                        "RECIBIDOS": "sum",
+                        "FINALIZADOS": "sum",
+                        "EN EJECUCIÓN CIERRE (6 AM)": "sum",
+                        "PENDIENTES CIERRE (6 AM)": "sum",
+                        "TOTAL": "sum",
+                    })
+                    .sort_values("FECHA_DT")
+                )
+        else:
+            col_f1, col_f2, col_f3 = st.columns([1, 1, 2])
+            entidad_sel = "TODOS"
+            df_res_base = df_resumen.copy()
+
+        anios_disp = sorted(df_res_base["ANIO"].dropna().unique().astype(int).tolist())
+        idx_anio = anios_disp.index(2026) if 2026 in anios_disp else len(anios_disp) - 1
         with col_f1:
-            anio_sel = st.selectbox("Año:", anios_disp, index=idx_anio, key="t1_anio")
+            anio_sel = st.selectbox("Año:", anios_disp, index=idx_anio, key=f"t1_anio_{sufijo_key}")
 
         meses_disp = sorted(
-            df_resumen[df_resumen["ANIO"] == anio_sel]["MES"].dropna().unique().astype(int).tolist()
+            df_res_base[df_res_base["ANIO"] == anio_sel]["MES"].dropna().unique().astype(int).tolist()
         )
         nombres_meses_disp = [meses_es[m] for m in meses_disp]
         idx_mes = nombres_meses_disp.index("Noviembre") if "Noviembre" in nombres_meses_disp else len(nombres_meses_disp) - 1
-
         with col_f2:
-            mes_nombre_sel = st.selectbox("Mes:", nombres_meses_disp, index=idx_mes, key="t1_mes")
+            mes_nombre_sel = st.selectbox("Mes:", nombres_meses_disp, index=idx_mes, key=f"t1_mes_{sufijo_key}")
             mes_sel = [k for k, v in meses_es.items() if v == mes_nombre_sel][0]
 
-        df_mes = df_resumen[
-            (df_resumen["ANIO"] == anio_sel) & (df_resumen["MES"] == mes_sel)
+        df_mes = df_res_base[
+            (df_res_base["ANIO"] == anio_sel) & (df_res_base["MES"] == mes_sel)
         ].copy()
 
-        # Filtro opcional por rango de días dentro del mes
         if not df_mes.empty:
             min_f = df_mes["FECHA_DT"].min().date()
             max_f = df_mes["FECHA_DT"].max().date()
@@ -163,7 +273,7 @@ with tab1:
                     value=(min_f, max_f),
                     min_value=min_f,
                     max_value=max_f,
-                    key="t1_rango",
+                    key=f"t1_rango_{sufijo_key}",
                 )
             if isinstance(rango_fechas, tuple) and len(rango_fechas) == 2:
                 df_mes = df_mes[
@@ -199,22 +309,23 @@ with tab1:
                 + df_mes["EN EJECUCIÓN CIERRE (6 AM)"]
             )
 
+            subtitulo_ent = f" — {entidad_sel}" if tiene_col_entidad and entidad_sel != "TODOS" else ""
             fig1 = go.Figure()
             fig1.add_trace(go.Bar(
                 x=df_mes["FECHA_STR"], y=df_mes["PENDIENTES INICIO (6 AM)"],
-                name="Pendientes Inicio (6 AM)", marker_color="#fca5a5",
+                name="Pendientes Inicio (6 AM)", marker_color=COLOR_PA_INICIO,
                 text=df_mes["PENDIENTES INICIO (6 AM)"], textposition="inside",
                 textfont=dict(color="black", size=11),
             ))
             fig1.add_trace(go.Bar(
                 x=df_mes["FECHA_STR"], y=df_mes["RECIBIDOS"],
-                name="Recibidos", marker_color="#e9f056",
+                name="Recibidos", marker_color=COLOR_RECIBIDOS,
                 text=df_mes["RECIBIDOS"], textposition="inside",
                 textfont=dict(color="black", size=11),
             ))
             fig1.add_trace(go.Bar(
                 x=df_mes["FECHA_STR"], y=df_mes["EN EJECUCIÓN CIERRE (6 AM)"],
-                name="En Ejecución Cierre (6 AM)", marker_color="#93c5fd",
+                name="En Ejecución Cierre (6 AM)", marker_color=COLOR_EE_CIERRE,
                 text=df_mes["EN EJECUCIÓN CIERRE (6 AM)"], textposition="inside",
                 textfont=dict(color="black", size=11),
             ))
@@ -229,8 +340,8 @@ with tab1:
                 x=df_mes["FECHA_STR"], y=df_mes["FINALIZADOS"],
                 name="Finalizados", mode="lines+markers+text",
                 text=df_mes["FINALIZADOS"], textposition="bottom center",
-                textfont=dict(color="#1d4ed8", size=11),
-                marker=dict(size=6, color="#1d4ed8"), line=dict(color="#1d4ed8", width=2),
+                textfont=dict(color=COLOR_FINALIZADOS, size=11),
+                marker=dict(size=6, color=COLOR_FINALIZADOS), line=dict(color=COLOR_FINALIZADOS, width=2),
             ))
             fig1.add_trace(go.Scatter(
                 x=df_mes["FECHA_STR"], y=[round(prom_rec, 1)] * len(df_mes),
@@ -243,16 +354,17 @@ with tab1:
                 mode="lines", line=dict(color="#16a34a", width=2.5, dash="dot"),
             ))
             fig1.update_layout(
-                title=f"<b>Flujo Diario de Incidencias (Corte 6:00 AM) — {mes_nombre_sel} {anio_sel}</b>",
+                title=f"<b>Flujo Diario ({etiqueta_plural}{subtitulo_ent}) — {mes_nombre_sel} {anio_sel}</b>",
                 barmode="stack",
                 xaxis_title="<b>Fecha Operativa</b>",
                 yaxis_title="<b>Cantidad</b>",
                 hovermode="x unified",
                 legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
             )
-            st.plotly_chart(fig1, use_container_width=True)
+            st.plotly_chart(fig1, use_container_width=True, key=f"fig_diario_{sufijo_key}")
 
             cols_tabla_res = [
+                col_entidad if (tiene_col_entidad and entidad_sel != "TODOS") else None,
                 "FECHA OPERATIVA",
                 "VENTANA TURNO",
                 "PENDIENTES INICIO (6 AM)",
@@ -262,35 +374,59 @@ with tab1:
                 "EN EJECUCIÓN CIERRE (6 AM)",
                 "PENDIENTES CIERRE (6 AM)",
             ]
-            cols_tabla_res = [c for c in cols_tabla_res if c in df_mes.columns]
+            cols_tabla_res = [c for c in cols_tabla_res if c and c in df_mes.columns]
             st.dataframe(df_mes[cols_tabla_res], use_container_width=True, hide_index=True)
 
             buf_d = io.BytesIO()
             with pd.ExcelWriter(buf_d, engine="openpyxl") as writer:
                 df_mes[cols_tabla_res].to_excel(writer, index=False, sheet_name="Seguimiento_Diario")
             st.download_button(
-                "⬇️ Descargar Seguimiento Diario (.xlsx)",
+                f"⬇️ Descargar Seguimiento Diario {etiqueta_plural} (.xlsx)",
                 buf_d.getvalue(),
-                file_name=f"seguimiento_diario_{mes_nombre_sel.lower()}_{anio_sel}.xlsx",
+                file_name=f"seguimiento_diario_{sufijo_key}_{mes_nombre_sel.lower()}_{anio_sel}.xlsx",
+                key=f"dl_diario_{sufijo_key}",
             )
 
 
 # ------------------------------------------
-# TAB 2: SEGUIMIENTO ANUAL (Resumen Diario 6AM agrupado por mes)
+# TAB 2: SEGUIMIENTO ANUAL
 # ------------------------------------------
 with tab2:
-    st.subheader("📈 Seguimiento Mensual Acumulado")
+    st.subheader(f"📈 Seguimiento Mensual Acumulado ({etiqueta_plural})")
     if df_resumen.empty:
-        st.info("La hoja 'Resumen Diario 6AM' no tiene registros.")
+        st.info(f"No hay registros cargados en el resumen diario de {etiqueta_plural}.")
     else:
-        anios_disp_y = sorted(df_resumen["ANIO"].dropna().unique().astype(int).tolist())
+        tiene_col_entidad = col_entidad in df_resumen.columns
+        if tiene_col_entidad:
+            col_y0, col_y1, _ = st.columns([1.2, 1, 2])
+            entidades_y = ["TODOS"] + sorted([e for e in df_resumen[col_entidad].unique() if e])
+            with col_y0:
+                entidad_y_sel = st.selectbox(f"{etiqueta_entidad}:", entidades_y, key=f"t2_ent_{sufijo_key}")
+            if entidad_y_sel != "TODOS":
+                df_y_base = df_resumen[df_resumen[col_entidad] == entidad_y_sel].copy()
+            else:
+                df_y_base = (
+                    df_resumen.groupby(["FECHA_DT", "ANIO", "MES"], as_index=False)
+                    .agg({
+                        "PENDIENTES INICIO (6 AM)": "sum",
+                        "RECIBIDOS": "sum",
+                        "FINALIZADOS": "sum",
+                        "EN EJECUCIÓN CIERRE (6 AM)": "sum",
+                        "PENDIENTES CIERRE (6 AM)": "sum",
+                    })
+                    .sort_values("FECHA_DT")
+                )
+        else:
+            col_y1, _ = st.columns([1, 3])
+            entidad_y_sel = "TODOS"
+            df_y_base = df_resumen.copy()
+
+        anios_disp_y = sorted(df_y_base["ANIO"].dropna().unique().astype(int).tolist())
         idx_anio_y = anios_disp_y.index(2026) if 2026 in anios_disp_y else len(anios_disp_y) - 1
-
-        col_y1, _ = st.columns([1, 3])
         with col_y1:
-            anio_anual = st.selectbox("Seleccione el Año:", anios_disp_y, index=idx_anio_y, key="t2_anio")
+            anio_anual = st.selectbox("Seleccione el Año:", anios_disp_y, index=idx_anio_y, key=f"t2_anio_{sufijo_key}")
 
-        df_y = df_resumen[df_resumen["ANIO"] == anio_anual].sort_values("FECHA_DT")
+        df_y = df_y_base[df_y_base["ANIO"] == anio_anual].sort_values("FECHA_DT")
         filas_anuales = []
 
         for m, grp in df_y.groupby("MES", sort=True):
@@ -317,21 +453,25 @@ with tab2:
         if not df_anual.empty:
             st.dataframe(df_anual.drop(columns=["MES_NUM"]), use_container_width=True, hide_index=True)
 
+            subtitulo_y = f" — {entidad_y_sel}" if tiene_col_entidad and entidad_y_sel != "TODOS" else ""
             fig_anual = go.Figure()
             fig_anual.add_trace(go.Bar(
                 x=df_anual["MES"], y=df_anual["PENDIENTES INICIO (6 AM)"],
-                name="Pendientes Inicio (6 AM)", marker_color="#fca5a5",
+                name="Pendientes Inicio (6 AM)", marker_color=COLOR_PA_INICIO,
                 text=df_anual["PENDIENTES INICIO (6 AM)"], textposition="inside",
+                textfont=dict(color="black", size=11),
             ))
             fig_anual.add_trace(go.Bar(
                 x=df_anual["MES"], y=df_anual["RECIBIDOS"],
-                name="Recibidos", marker_color="#e9f056",
+                name="Recibidos", marker_color=COLOR_RECIBIDOS,
                 text=df_anual["RECIBIDOS"], textposition="inside",
+                textfont=dict(color="black", size=11),
             ))
             fig_anual.add_trace(go.Bar(
                 x=df_anual["MES"], y=df_anual["EN EJECUCIÓN CIERRE (6 AM)"],
-                name="En Ejecución Cierre (6 AM)", marker_color="#93c5fd",
+                name="En Ejecución Cierre (6 AM)", marker_color=COLOR_EE_CIERRE,
                 text=df_anual["EN EJECUCIÓN CIERRE (6 AM)"], textposition="inside",
+                textfont=dict(color="black", size=11),
             ))
             tope_anual = (
                 df_anual["PENDIENTES INICIO (6 AM)"]
@@ -348,48 +488,50 @@ with tab2:
                 x=df_anual["MES"], y=df_anual["FINALIZADOS"],
                 name="Finalizados", mode="lines+markers+text",
                 text=df_anual["FINALIZADOS"], textposition="bottom center",
-                marker=dict(size=6, color="#1d4ed8"), line=dict(color="#1d4ed8", width=2),
+                marker=dict(size=6, color=COLOR_FINALIZADOS), line=dict(color=COLOR_FINALIZADOS, width=2),
             ))
             fig_anual.update_layout(
-                title=f"<b>Evolución Mensual Acumulada — {anio_anual}</b>",
+                title=f"<b>Evolución Mensual Acumulada ({etiqueta_plural}{subtitulo_y}) — {anio_anual}</b>",
                 barmode="stack",
                 xaxis_title="<b>Mes</b>",
                 yaxis_title="<b>Cantidad</b>",
                 hovermode="x unified",
                 legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
             )
-            st.plotly_chart(fig_anual, use_container_width=True)
+            st.plotly_chart(fig_anual, use_container_width=True, key=f"fig_anual_{sufijo_key}")
 
 
 # ------------------------------------------
-# TAB 3: PENDIENTES (PA) POR MOTIVO (Consolidado Zonas)
+# TAB 3: PENDIENTES (PA) POR MOTIVO
 # ------------------------------------------
 with tab3:
-    st.subheader("⏳ Incidencias Pendientes (PA) por Motivo")
+    st.subheader(f"⏳ Incidencias Pendientes (PA) por Motivo — {etiqueta_plural}")
     if df_consolidado.empty:
-        st.info("La hoja 'Consolidado Zonas' está vacía.")
+        st.info(f"La hoja de consolidado de {etiqueta_plural} está vacía.")
     else:
-        df_pa = df_consolidado[df_consolidado["ESTADO"] == "PA"].copy()
+        df_pa = df_consolidado[df_consolidado["ESTADO"] == "PA"].copy() if "ESTADO" in df_consolidado.columns else df_consolidado.copy()
 
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
-            zonas_pa = ["TODAS"] + sorted([z for z in df_pa["ZONA"].unique() if z])
-            zona_pa_sel = st.selectbox("Filtrar por Zona:", zonas_pa, key="t3_zona")
+            opciones_ent = ["TODAS" if ambito == "Zonas" else "TODOS"] + (
+                sorted([e for e in df_pa[col_entidad].unique() if e]) if col_entidad in df_pa.columns else []
+            )
+            ent_pa_sel = st.selectbox(f"Filtrar por {etiqueta_entidad}:", opciones_ent, key=f"t3_ent_{sufijo_key}")
         with col_p2:
             anios_pa = ["TODOS"] + sorted([a for a in df_pa.get("AÑO RECIBIDO", pd.Series()).unique() if a])
-            anio_pa_sel = st.selectbox("Año Recibido:", anios_pa, key="t3_anio")
+            anio_pa_sel = st.selectbox("Año Recibido:", anios_pa, key=f"t3_anio_{sufijo_key}")
         with col_p3:
             meses_pa = ["TODOS"] + [m for m in meses_upper.values() if m in df_pa.get("MES RECIBIDO", pd.Series()).unique()]
-            mes_pa_sel = st.selectbox("Mes Recibido:", meses_pa, key="t3_mes")
+            mes_pa_sel = st.selectbox("Mes Recibido:", meses_pa, key=f"t3_mes_{sufijo_key}")
 
-        if zona_pa_sel != "TODAS":
-            df_pa = df_pa[df_pa["ZONA"] == zona_pa_sel]
+        if ent_pa_sel not in ["TODAS", "TODOS"] and col_entidad in df_pa.columns:
+            df_pa = df_pa[df_pa[col_entidad] == ent_pa_sel]
         if anio_pa_sel != "TODOS" and "AÑO RECIBIDO" in df_pa.columns:
             df_pa = df_pa[df_pa["AÑO RECIBIDO"] == anio_pa_sel]
         if mes_pa_sel != "TODOS" and "MES RECIBIDO" in df_pa.columns:
             df_pa = df_pa[df_pa["MES RECIBIDO"] == mes_pa_sel]
 
-        st.metric("⏳ Total Incidencias PA Filtradas", f"{len(df_pa):,}")
+        st.metric(f"⏳ Total Incidencias PA ({etiqueta_plural})", f"{len(df_pa):,}")
 
         if not df_pa.empty and "MOTIVO" in df_pa.columns:
             motivos = df_pa["MOTIVO"].replace("", "SIN MOTIVO")
@@ -418,7 +560,7 @@ with tab3:
                     y="MOTIVO",
                     orientation="h",
                     text="PENDIENTES (PA)",
-                    title="Distribución de Pendientes (PA) por Motivo",
+                    title=f"Distribución de Pendientes (PA) por Motivo ({etiqueta_plural})",
                 )
                 fig_pa_mot.update_traces(marker_color="#b91c1c", textposition="outside", cliponaxis=False)
                 fig_pa_mot.update_layout(
@@ -427,27 +569,34 @@ with tab3:
                     height=max(320, len(res_ord) * 34),
                     margin=dict(r=40),
                 )
-                st.plotly_chart(fig_pa_mot, use_container_width=True)
+                st.plotly_chart(fig_pa_mot, use_container_width=True, key=f"fig_pa_mot_{sufijo_key}")
 
-            with st.expander("Ver listado detallado de incidencias PA"):
-                cols_pa_det = [c for c in ["INCIDENCIA", "ZONA", "RECEPCIÓN", "MOTIVO", "DIRECCIÓN", "CLIENTE", "TEC", "TCR"] if c in df_pa.columns]
+            with st.expander(f"Ver listado detallado de incidencias PA ({etiqueta_plural})"):
+                cols_pa_det = [
+                    c for c in ["INCIDENCIA", col_entidad, "RECEPCIÓN", "MOTIVO", "DIRECCIÓN", "CLIENTE", "TEC", "TCR"]
+                    if c in df_pa.columns
+                ]
                 st.dataframe(df_pa[cols_pa_det], use_container_width=True, hide_index=True)
         else:
             st.info("No hay incidencias en estado PA para los filtros seleccionados.")
 
 
 # ------------------------------------------
-# TAB 4: MATRIZ ZONAS (6 AM)
+# TAB 4: MATRIZ ZONAS / MUNICIPIOS (6 AM)
 # ------------------------------------------
 with tab4:
-    st.subheader("🗺️ Matriz de Pendientes por Zona (Corte 6:00 AM)")
+    st.subheader(f"🗺️ Matriz de Pendientes por {etiqueta_entidad} (Corte 6:00 AM)")
     if df_matriz.empty:
-        st.info("La hoja 'Matriz Zonas 6AM' no tiene datos.")
+        st.info(f"La hoja de matriz de {etiqueta_plural} no tiene datos.")
     else:
-        cols_fecha_mat = [c for c in df_matriz.columns if c != "ZONA"]
-        # Pasar a formato largo para filtrar por mes/año y graficar
-        df_mat_zonas = df_matriz[df_matriz["ZONA"] != "TOTALES"].copy()
-        df_long = df_mat_zonas.melt(id_vars=["ZONA"], value_vars=cols_fecha_mat, var_name="FECHA_STR", value_name="CANTIDAD")
+        cols_fecha_mat = [c for c in df_matriz.columns if c != col_entidad]
+        df_mat_ent = df_matriz[df_matriz[col_entidad] != "TOTALES"].copy()
+        df_long = df_mat_ent.melt(
+            id_vars=[col_entidad],
+            value_vars=cols_fecha_mat,
+            var_name="FECHA_STR",
+            value_name="CANTIDAD",
+        )
         df_long["FECHA_DT"] = pd.to_datetime(df_long["FECHA_STR"], format="%d/%m/%Y", errors="coerce")
         df_long["CANTIDAD"] = pd.to_numeric(df_long["CANTIDAD"], errors="coerce").fillna(0).astype(int)
         df_long = df_long.dropna(subset=["FECHA_DT"])
@@ -460,71 +609,78 @@ with tab4:
             anios_m = sorted(df_long["ANIO"].unique().tolist())
             idx_am = anios_m.index(2026) if 2026 in anios_m else len(anios_m) - 1
             with cm1:
-                anio_mat = st.selectbox("Año:", anios_m, index=idx_am, key="t4_anio")
+                anio_mat = st.selectbox("Año:", anios_m, index=idx_am, key=f"t4_anio_{sufijo_key}")
             meses_m = sorted(df_long[df_long["ANIO"] == anio_mat]["MES"].unique().tolist())
             nombres_mm = [meses_es[m] for m in meses_m]
             idx_mm = nombres_mm.index("Noviembre") if "Noviembre" in nombres_mm else len(nombres_mm) - 1
             with cm2:
-                mes_mat_nombre = st.selectbox("Mes:", nombres_mm, index=idx_mm, key="t4_mes")
+                mes_mat_nombre = st.selectbox("Mes:", nombres_mm, index=idx_mm, key=f"t4_mes_{sufijo_key}")
                 mes_mat = [k for k, v in meses_es.items() if v == mes_mat_nombre][0]
             with cm3:
-                zonas_m = ["TODAS"] + sorted(df_long["ZONA"].unique().tolist())
-                zona_mat = st.selectbox("Zona:", zonas_m, key="t4_zona")
+                todas_lbl = "TODAS" if ambito == "Zonas" else "TODOS"
+                entidades_m = [todas_lbl] + sorted(df_long[col_entidad].unique().tolist())
+                ent_mat = st.selectbox(f"{etiqueta_entidad}:", entidades_m, key=f"t4_ent_{sufijo_key}")
 
             df_long_f = df_long[(df_long["ANIO"] == anio_mat) & (df_long["MES"] == mes_mat)].copy()
-            if zona_mat != "TODAS":
-                df_long_f = df_long_f[df_long_f["ZONA"] == zona_mat]
+            if ent_mat != todas_lbl:
+                df_long_f = df_long_f[df_long_f[col_entidad] == ent_mat]
 
             if not df_long_f.empty:
                 fig_mat = px.line(
                     df_long_f.sort_values("FECHA_DT"),
                     x="FECHA_DT",
                     y="CANTIDAD",
-                    color="ZONA",
+                    color=col_entidad,
                     markers=True,
-                    title=f"<b>Comportamiento Diario por Zona (6:00 AM) — {mes_mat_nombre} {anio_mat}</b>",
+                    title=f"<b>Comportamiento Diario por {etiqueta_entidad} (6:00 AM) — {mes_mat_nombre} {anio_mat}</b>",
                 )
                 fig_mat.update_layout(xaxis_title="<b>Fecha</b>", yaxis_title="<b>Cantidad</b>", hovermode="x unified")
-                st.plotly_chart(fig_mat, use_container_width=True)
+                st.plotly_chart(fig_mat, use_container_width=True, key=f"fig_mat_{sufijo_key}")
 
-            # Mostrar tabla pivoteada filtrada por el mes seleccionado
             fechas_cols_mes = (
                 df_long[(df_long["ANIO"] == anio_mat) & (df_long["MES"] == mes_mat)]
                 .sort_values("FECHA_DT")["FECHA_STR"]
                 .unique()
                 .tolist()
             )
-            cols_ver = ["ZONA"] + [c for c in fechas_cols_mes if c in df_matriz.columns]
+            cols_ver = [col_entidad] + [c for c in fechas_cols_mes if c in df_matriz.columns]
             df_matriz_vista = df_matriz[cols_ver].copy()
-            if zona_mat != "TODAS":
-                df_matriz_vista = df_matriz_vista[df_matriz_vista["ZONA"].isin([zona_mat, "TOTALES"])]
+            if ent_mat != todas_lbl:
+                df_matriz_vista = df_matriz_vista[df_matriz_vista[col_entidad].isin([ent_mat, "TOTALES"])]
             st.dataframe(df_matriz_vista, use_container_width=True, hide_index=True)
 
 
 # ------------------------------------------
-# TAB 5: BUSCADOR EN CONSOLIDADO ZONAS
+# TAB 5: BUSCADOR EN CONSOLIDADO
 # ------------------------------------------
 with tab5:
-    st.subheader("🔍 Buscador en Consolidado Zonas")
+    st.subheader(f"🔍 Buscador en Consolidado {etiqueta_plural}")
     if df_consolidado.empty:
-        st.info("No hay datos en 'Consolidado Zonas'.")
+        st.info(f"No hay datos en el consolidado de {etiqueta_plural}.")
     else:
+        todas_b = "TODAS" if ambito == "Zonas" else "TODOS"
         cb1, cb2, cb3, cb4 = st.columns(4)
         with cb1:
-            f_inc = st.text_input("Nº Incidencia:", placeholder="Ej. 12345")
+            f_inc = st.text_input("Nº Incidencia:", placeholder="Ej. 926117", key=f"t5_inc_{sufijo_key}")
         with cb2:
-            f_zona = st.selectbox("Zona:", ["TODAS"] + sorted([z for z in df_consolidado["ZONA"].unique() if z]))
+            lista_ent_b = [todas_b] + (
+                sorted([e for e in df_consolidado[col_entidad].unique() if e]) if col_entidad in df_consolidado.columns else []
+            )
+            f_ent = st.selectbox(f"{etiqueta_entidad}:", lista_ent_b, key=f"t5_ent_{sufijo_key}")
         with cb3:
-            f_est = st.selectbox("Estado:", ["TODOS"] + sorted([e for e in df_consolidado["ESTADO"].unique() if e]))
+            lista_est_b = ["TODOS"] + (
+                sorted([e for e in df_consolidado["ESTADO"].unique() if e]) if "ESTADO" in df_consolidado.columns else []
+            )
+            f_est = st.selectbox("Estado:", lista_est_b, key=f"t5_est_{sufijo_key}")
         with cb4:
-            f_mot = st.text_input("Motivo:", placeholder="Ej. SIN SERVICIO")
+            f_mot = st.text_input("Motivo:", placeholder="Ej. SECTOR SIN SERVICIO", key=f"t5_mot_{sufijo_key}")
 
         df_busq = df_consolidado.copy()
-        if f_inc:
+        if f_inc and "INCIDENCIA" in df_busq.columns:
             df_busq = df_busq[df_busq["INCIDENCIA"].str.contains(f_inc, case=False, na=False)]
-        if f_zona != "TODAS":
-            df_busq = df_busq[df_busq["ZONA"] == f_zona]
-        if f_est != "TODOS":
+        if f_ent != todas_b and col_entidad in df_busq.columns:
+            df_busq = df_busq[df_busq[col_entidad] == f_ent]
+        if f_est != "TODOS" and "ESTADO" in df_busq.columns:
             df_busq = df_busq[df_busq["ESTADO"] == f_est]
         if f_mot and "MOTIVO" in df_busq.columns:
             df_busq = df_busq[df_busq["MOTIVO"].str.contains(f_mot, case=False, na=False)]
@@ -532,7 +688,7 @@ with tab5:
         st.write(f"Registros encontrados: **{len(df_busq):,}**")
         cols_busq = [
             c for c in [
-                "INCIDENCIA", "ZONA", "RECEPCIÓN", "FINALIZACIÓN", "ESTADO",
+                "INCIDENCIA", col_entidad, "RECEPCIÓN", "FINALIZACIÓN", "ESTADO",
                 "MOTIVO", "DIRECCIÓN", "CLIENTE", "TEC", "TCR", "TDV", "TEJ", "TAR",
             ] if c in df_busq.columns
         ]
