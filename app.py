@@ -172,7 +172,7 @@ with st.sidebar:
     st.header("🧭 Ámbito de Análisis")
     ambito = st.radio(
         "Seleccione el conjunto de datos:",
-        options=["Zonas", "Municipios"],
+        options=["Iribarren", "Foráneos"],
         index=0,
         key="selector_ambito",
     )
@@ -202,9 +202,9 @@ sufijo_key = ambito.lower()
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     f"📅 Seguimiento Diario ({etiqueta_plural})",
     f"📈 Seguimiento Anual ({etiqueta_plural})",
-    f"⏳ PA por Motivo ({etiqueta_plural})",
+    f"⏳ Pendientes por Motivo ({etiqueta_plural})",
     f"🗺️ Matriz {etiqueta_plural} (6 AM)",
-    f"🔍 Buscador Consolidado ({etiqueta_plural})",
+    f"🔍 Buscador ({etiqueta_plural})",
 ])
 
 
@@ -212,7 +212,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1: SEGUIMIENTO DIARIO
 # ------------------------------------------
 with tab1:
-    st.subheader(f"📅 Comportamiento Diario ({etiqueta_plural}) — Corte 6:00 AM")
+    st.subheader(f"📅 Seguimiento Diario ({etiqueta_plural}) — Corte 6:00 AM")
     if df_resumen.empty:
         st.info(f"No hay registros cargados en el resumen diario de {etiqueta_plural}.")
     else:
@@ -392,7 +392,7 @@ with tab1:
 # TAB 2: SEGUIMIENTO ANUAL
 # ------------------------------------------
 with tab2:
-    st.subheader(f"📈 Seguimiento Mensual Acumulado ({etiqueta_plural})")
+    st.subheader(f"📈 Seguimiento Mensual ({etiqueta_plural})")
     if df_resumen.empty:
         st.info(f"No hay registros cargados en el resumen diario de {etiqueta_plural}.")
     else:
@@ -505,7 +505,7 @@ with tab2:
 # TAB 3: PENDIENTES (PA) POR MOTIVO
 # ------------------------------------------
 with tab3:
-    st.subheader(f"⏳ Incidencias Pendientes (PA) por Motivo — {etiqueta_plural}")
+    st.subheader(f"⏳ Incidencias Pendientes por Motivo — {etiqueta_plural}")
     if df_consolidado.empty:
         st.info(f"La hoja de consolidado de {etiqueta_plural} está vacía.")
     else:
@@ -654,7 +654,7 @@ with tab4:
 # TAB 5: BUSCADOR EN CONSOLIDADO
 # ------------------------------------------
 with tab5:
-    st.subheader(f"🔍 Buscador en Consolidado {etiqueta_plural}")
+    st.subheader(f"🔍 Buscador {etiqueta_plural}")
     if df_consolidado.empty:
         st.info(f"No hay datos en el consolidado de {etiqueta_plural}.")
     else:
