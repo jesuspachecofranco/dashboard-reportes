@@ -25,6 +25,7 @@ meses_es = {
     9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
 }
 meses_upper = {k: v.upper() for k, v in meses_es.items()}
+meses_inv_upper = {v.upper(): k for k, v in meses_es.items()}
 
 
 # ==========================================
@@ -44,6 +45,11 @@ def _limpiar_consolidado(df, col_entidad):
         df["RECEPCION_DT"] = pd.to_datetime(
             df["RECEPCIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
         )
+        mask_nat = df["RECEPCION_DT"].isna()
+        if mask_nat.any():
+            df.loc[mask_nat, "RECEPCION_DT"] = pd.to_datetime(
+                df.loc[mask_nat, "RECEPCIÓN"], dayfirst=True, errors="coerce"
+            )
     if "FINALIZACIÓN" in df.columns:
         df["FINALIZACION_DT"] = pd.to_datetime(
             df["FINALIZACIÓN"], format="%d-%m-%y %I:%M %p", errors="coerce"
@@ -152,6 +158,38 @@ def _construir_bloque_lara(datos_iri, datos_for):
         "resumen": res_lara,
         "matriz": mat_lara,
     }
+
+
+def _obtener_ee_por_mes_recepcion(df_cons, col_ent, entidad_sel, anio_sel):
+    """Devuelve un dict {mes_int: cantidad_EE} contando solo los EE recibidos en ese mes/año."""
+    if df_cons.empty or "ESTADO" not in df_cons.columns:
+        return {}
+
+    sub = df_cons[df_cons["ESTADO"] == "EE"].copy()
+    if sub.empty:
+        return {}
+
+    if entidad_sel != "TODOS" and col_ent in sub.columns:
+        sub = sub[sub[col_ent] == entidad_sel]
+
+    if sub.empty:
+        return {}
+
+    if "RECEPCION_DT" in sub.columns and sub["RECEPCION_DT"].notna().any():
+        sub_valid = sub.dropna(subset=["RECEPCION_DT"]).copy()
+        sub_valid["ANIO_REC"] = sub_valid["RECEPCION_DT"].dt.year
+        sub_valid["MES_REC"] = sub_valid["RECEPCION_DT"].dt.month
+        sub_anio = sub_valid[sub_valid["ANIO_REC"] == int(anio_sel)]
+        return sub_anio.groupby("MES_REC").size().to_dict()
+
+    if "AÑO RECIBIDO" in sub.columns and "MES RECIBIDO" in sub.columns:
+        sub_anio = sub[sub["AÑO RECIBIDO"].astype(str).str.strip() == str(anio_sel)].copy()
+        sub_anio["MES_NUM"] = sub_anio["MES RECIBIDO"].str.upper().str.strip().map(meses_inv_upper)
+        sub_anio = sub_anio.dropna(subset=["MES_NUM"])
+        sub_anio["MES_NUM"] = sub_anio["MES_NUM"].astype(int)
+        return sub_anio.groupby("MES_NUM").size().to_dict()
+
+    return {}
 
 
 @st.cache_data
@@ -525,10 +563,10 @@ with tab1:
 
 
 # ------------------------------------------
-# TAB 2: SEGUIMIENTO ANUAL (RECIBIDOS + EE VS CURVA ATENDIDOS)
+# TAB 2: SEGUIMIENTO ANUAL (RECIBIDOS + EE DEL MES VS CURVA ATENDIDOS)
 # ------------------------------------------
 with tab2:
-    st.subheader(f"📈 Seguimiento Anual: Recibidos y En Ejecución vs. Atendidos ({ambito})")
+    st.subheader(f"📈 Seguimiento Anual: Recibidos y En Ejecución (del Mes) vs. Atendidos ({ambito})")
     if df_resumen.empty:
         st.info(f"No hay registros cargados en el resumen diario de {ambito}.")
     else:
@@ -546,7 +584,6 @@ with tab2:
                     .agg({
                         "RECIBIDOS": "sum",
                         "FINALIZADOS": "sum",
-                        "EN EJECUCIÓN CIERRE (6 AM)": "sum",
                     })
                     .sort_values("FECHA_DT")
                 )
@@ -560,20 +597,24 @@ with tab2:
         with col_y1:
             anio_anual = st.selectbox("Seleccione el Año:", anios_disp_y, index=idx_anio_y, key=f"t2_anio_{sufijo_key}")
 
+        # EE recibidos estrictamente en cada mes del año seleccionado (sin arrastre acumulado)
+        ee_por_mes = _obtener_ee_por_mes_recepcion(df_consolidado, col_entidad, entidad_y_sel, anio_anual)
+
         df_y = df_y_base[df_y_base["ANIO"] == anio_anual].sort_values("FECHA_DT")
         filas_anuales = []
 
         for m, grp in df_y.groupby("MES", sort=True):
+            mes_int = int(m)
             rec_m = int(grp["RECIBIDOS"].sum())
             atend_m = int(grp["FINALIZADOS"].sum())
-            ee_cierre_m = int(grp["EN EJECUCIÓN CIERRE (6 AM)"].iloc[-1])
+            ee_mes = int(ee_por_mes.get(mes_int, 0))
             dif_m = atend_m - rec_m
 
             filas_anuales.append({
-                "MES_NUM": int(m),
-                "MES": meses_upper[int(m)],
+                "MES_NUM": mes_int,
+                "MES": meses_upper[mes_int],
                 "RECIBIDOS": rec_m,
-                "EN EJECUCIÓN CIERRE (6 AM)": ee_cierre_m,
+                "EN EJECUCIÓN (DEL MES)": ee_mes,
                 "ATENDIDOS": atend_m,
                 "DIFERENCIA (ATEND - REC)": dif_m,
             })
@@ -583,14 +624,14 @@ with tab2:
         if not df_anual.empty:
             tot_rec_anual = int(df_anual["RECIBIDOS"].sum())
             tot_atend_anual = int(df_anual["ATENDIDOS"].sum())
-            ee_cierre_anual = int(df_anual["EN EJECUCIÓN CIERRE (6 AM)"].iloc[-1])
+            tot_ee_anual = int(df_anual["EN EJECUCIÓN (DEL MES)"].sum())
             prom_rec_anual = float(df_anual["RECIBIDOS"].mean())
             prom_atend_anual = float(df_anual["ATENDIDOS"].mean())
 
             ym1, ym2, ym3, ym4, ym5 = st.columns(5)
             ym1.metric(f"📥 Total Recibidos ({anio_anual})", f"{tot_rec_anual:,}")
             ym2.metric(f"✅ Total Atendidos ({anio_anual})", f"{tot_atend_anual:,}")
-            ym3.metric("⚙️ En Ejec. Cierre (6 AM)", f"{ee_cierre_anual:,}")
+            ym3.metric(f"⚙️ En Ejecución ({anio_anual})", f"{tot_ee_anual:,}")
             ym4.metric("📈 Prom. Mensual Recibidos", f"{prom_rec_anual:,.1f}")
             ym5.metric("📉 Prom. Mensual Atendidos", f"{prom_atend_anual:,.1f}")
             st.divider()
@@ -608,10 +649,10 @@ with tab2:
             ))
             fig_anual.add_trace(go.Bar(
                 x=df_anual["MES"],
-                y=df_anual["EN EJECUCIÓN CIERRE (6 AM)"],
-                name="En Ejecución Cierre (6 AM)",
+                y=df_anual["EN EJECUCIÓN (DEL MES)"],
+                name="En Ejecución (del Mes)",
                 marker_color=COLOR_EE_CIERRE,
-                text=df_anual["EN EJECUCIÓN CIERRE (6 AM)"],
+                text=df_anual["EN EJECUCIÓN (DEL MES)"],
                 textposition="inside",
                 textfont=dict(color="black", size=11),
             ))
@@ -628,7 +669,7 @@ with tab2:
                 cliponaxis=False,
             ))
             fig_anual.update_layout(
-                title=f"<b>Recibidos y En Ejecución vs. Atendidos por Mes ({ambito}{subtitulo_y}) — {anio_anual}</b>",
+                title=f"<b>Recibidos y En Ejecución (del Mes) vs. Atendidos ({ambito}{subtitulo_y}) — {anio_anual}</b>",
                 barmode="stack",
                 bargap=0.28,
                 xaxis_title="<b>Mes</b>",
