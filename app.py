@@ -525,10 +525,10 @@ with tab1:
 
 
 # ------------------------------------------
-# TAB 2: SEGUIMIENTO ANUAL (BARRA RECIBIDOS VS CURVA ATENDIDOS)
+# TAB 2: SEGUIMIENTO ANUAL (RECIBIDOS + EE VS CURVA ATENDIDOS)
 # ------------------------------------------
 with tab2:
-    st.subheader(f"📈 Seguimiento Anual: Recibidos vs. Atendidos ({ambito})")
+    st.subheader(f"📈 Seguimiento Anual: Recibidos y En Ejecución vs. Atendidos ({ambito})")
     if df_resumen.empty:
         st.info(f"No hay registros cargados en el resumen diario de {ambito}.")
     else:
@@ -546,6 +546,7 @@ with tab2:
                     .agg({
                         "RECIBIDOS": "sum",
                         "FINALIZADOS": "sum",
+                        "EN EJECUCIÓN CIERRE (6 AM)": "sum",
                     })
                     .sort_values("FECHA_DT")
                 )
@@ -565,12 +566,14 @@ with tab2:
         for m, grp in df_y.groupby("MES", sort=True):
             rec_m = int(grp["RECIBIDOS"].sum())
             atend_m = int(grp["FINALIZADOS"].sum())
+            ee_cierre_m = int(grp["EN EJECUCIÓN CIERRE (6 AM)"].iloc[-1])
             dif_m = atend_m - rec_m
 
             filas_anuales.append({
                 "MES_NUM": int(m),
                 "MES": meses_upper[int(m)],
                 "RECIBIDOS": rec_m,
+                "EN EJECUCIÓN CIERRE (6 AM)": ee_cierre_m,
                 "ATENDIDOS": atend_m,
                 "DIFERENCIA (ATEND - REC)": dif_m,
             })
@@ -580,14 +583,16 @@ with tab2:
         if not df_anual.empty:
             tot_rec_anual = int(df_anual["RECIBIDOS"].sum())
             tot_atend_anual = int(df_anual["ATENDIDOS"].sum())
+            ee_cierre_anual = int(df_anual["EN EJECUCIÓN CIERRE (6 AM)"].iloc[-1])
             prom_rec_anual = float(df_anual["RECIBIDOS"].mean())
             prom_atend_anual = float(df_anual["ATENDIDOS"].mean())
 
-            ym1, ym2, ym3, ym4 = st.columns(4)
+            ym1, ym2, ym3, ym4, ym5 = st.columns(5)
             ym1.metric(f"📥 Total Recibidos ({anio_anual})", f"{tot_rec_anual:,}")
             ym2.metric(f"✅ Total Atendidos ({anio_anual})", f"{tot_atend_anual:,}")
-            ym3.metric("📈 Prom. Mensual Recibidos", f"{prom_rec_anual:,.1f}")
-            ym4.metric("📉 Prom. Mensual Atendidos", f"{prom_atend_anual:,.1f}")
+            ym3.metric("⚙️ En Ejec. Cierre (6 AM)", f"{ee_cierre_anual:,}")
+            ym4.metric("📈 Prom. Mensual Recibidos", f"{prom_rec_anual:,.1f}")
+            ym5.metric("📉 Prom. Mensual Atendidos", f"{prom_atend_anual:,.1f}")
             st.divider()
 
             subtitulo_y = f" — {entidad_y_sel}" if tiene_col_entidad and entidad_y_sel != "TODOS" else ""
@@ -598,6 +603,15 @@ with tab2:
                 name="Recibidos",
                 marker_color=COLOR_RECIBIDOS,
                 text=df_anual["RECIBIDOS"],
+                textposition="inside",
+                textfont=dict(color="black", size=11),
+            ))
+            fig_anual.add_trace(go.Bar(
+                x=df_anual["MES"],
+                y=df_anual["EN EJECUCIÓN CIERRE (6 AM)"],
+                name="En Ejecución Cierre (6 AM)",
+                marker_color=COLOR_EE_CIERRE,
+                text=df_anual["EN EJECUCIÓN CIERRE (6 AM)"],
                 textposition="inside",
                 textfont=dict(color="black", size=11),
             ))
@@ -614,7 +628,8 @@ with tab2:
                 cliponaxis=False,
             ))
             fig_anual.update_layout(
-                title=f"<b>Recibidos vs. Atendidos por Mes ({ambito}{subtitulo_y}) — {anio_anual}</b>",
+                title=f"<b>Recibidos y En Ejecución vs. Atendidos por Mes ({ambito}{subtitulo_y}) — {anio_anual}</b>",
+                barmode="stack",
                 bargap=0.28,
                 xaxis_title="<b>Mes</b>",
                 yaxis_title="<b>Cantidad de Incidencias</b>",
