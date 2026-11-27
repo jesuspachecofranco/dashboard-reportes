@@ -176,7 +176,7 @@ with st.sidebar:
         index=0,
         key="selector_ambito",
     )
-    st.caption("Los datos de Iribarren (Zonas) y Foráneos (Municipios) se analizan por separado.")
+    st.caption("Los datos se analizan por separado.")
 
 if ambito == "Iribarren":
     df_consolidado = datos["iribarren"]["consolidado"]
@@ -200,11 +200,11 @@ else:
 # 3. PESTAÑAS PRINCIPALES
 # ==========================================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    f"📅 Seguimiento Diario ({ambito})",
-    f"📈 Seguimiento Anual ({ambito})",
-    f"⏳ PA por Motivo ({ambito})",
+    "📅 Seguimiento Diario",
+    "📈 Seguimiento Anual",
+    "⏳ PA por Motivo",
     f"🗺️ Matriz {etiqueta_listado} (6 AM)",
-    f"🔍 Buscador Consolidado ({ambito})",
+    "🔍 Buscador",
 ])
 
 
@@ -723,10 +723,10 @@ with tab4:
 
 
 # ------------------------------------------
-# TAB 5: BUSCADOR EN CONSOLIDADO
+# TAB 5: BUSCADOR DE INCIDENCIAS
 # ------------------------------------------
 with tab5:
-    st.subheader(f"🔍 Buscador en Consolidado ({ambito} — {etiqueta_listado})")
+    st.subheader("🔍 Buscador de Incidencias")
     if df_consolidado.empty:
         st.info(f"No hay datos en el consolidado de {ambito}.")
     else:
