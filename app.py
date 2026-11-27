@@ -100,7 +100,6 @@ def _limpiar_matriz(df, col_entidad):
 
 def _construir_bloque_lara(datos_iri, datos_for):
     """Combina Iribarren + Municipios Foráneos en un solo conjunto estatal (Lara)."""
-    # 1. Consolidado Lara
     cons_iri = datos_iri["consolidado"].copy()
     cons_for = datos_for["consolidado"].copy()
     if not cons_iri.empty:
@@ -108,7 +107,6 @@ def _construir_bloque_lara(datos_iri, datos_for):
     dfs_cons = [d for d in [cons_iri, cons_for] if not d.empty]
     cons_lara = pd.concat(dfs_cons, ignore_index=True) if dfs_cons else pd.DataFrame()
 
-    # 2. Resumen Lara (con columna MUNICIPIO donde Iribarren figura como 'IRIBARREN')
     res_iri = datos_iri["resumen"].copy()
     res_for = datos_for["resumen"].copy()
     if not res_iri.empty:
@@ -120,7 +118,6 @@ def _construir_bloque_lara(datos_iri, datos_for):
         else pd.DataFrame()
     )
 
-    # 3. Matriz Lara (fila TOTALES de Matriz Zonas como 'IRIBARREN' + municipios foráneos)
     mat_iri = datos_iri["matriz"].copy()
     mat_for = datos_for["matriz"].copy()
     fila_iri = pd.DataFrame()
@@ -178,7 +175,6 @@ def cargar_excel_completo():
         },
     }
 
-    # --- BLOQUE IRIBARREN (Hojas de Zonas) ---
     if "consolidado zonas" in hojas:
         datos["iribarren"]["consolidado"] = _limpiar_consolidado(
             pd.read_excel(xl, sheet_name=hojas["consolidado zonas"], dtype=str), "ZONA"
@@ -192,7 +188,6 @@ def cargar_excel_completo():
             pd.read_excel(xl, sheet_name=hojas["matriz zonas 6am"]), "ZONA"
         )
 
-    # --- BLOQUE FORÁNEOS (Hojas de Municipios) ---
     for posible_cons in ["consolidado municipios", "consolidado municipio"]:
         if posible_cons in hojas:
             datos["foraneos"]["consolidado"] = _limpiar_consolidado(
@@ -214,7 +209,6 @@ def cargar_excel_completo():
             )
             break
 
-    # --- BLOQUE LARA (IRIBARREN + FORÁNEOS UNIFICADOS) ---
     datos["lara"] = _construir_bloque_lara(datos["iribarren"], datos["foraneos"])
 
     return datos
@@ -531,7 +525,7 @@ with tab1:
 
 
 # ------------------------------------------
-# TAB 2: SEGUIMIENTO ANUAL (RECIBIDO VS ATENDIDO)
+# TAB 2: SEGUIMIENTO ANUAL (BARRA RECIBIDOS VS CURVA ATENDIDOS)
 # ------------------------------------------
 with tab2:
     st.subheader(f"📈 Seguimiento Anual: Recibidos vs. Atendidos ({ambito})")
@@ -604,25 +598,24 @@ with tab2:
                 name="Recibidos",
                 marker_color=COLOR_RECIBIDOS,
                 text=df_anual["RECIBIDOS"],
-                textposition="outside",
+                textposition="inside",
                 textfont=dict(color="black", size=11),
-                cliponaxis=False,
             ))
-            fig_anual.add_trace(go.Bar(
+            fig_anual.add_trace(go.Scatter(
                 x=df_anual["MES"],
                 y=df_anual["ATENDIDOS"],
                 name="Atendidos",
-                marker_color=COLOR_FINALIZADOS,
+                mode="lines+markers+text",
                 text=df_anual["ATENDIDOS"],
-                textposition="outside",
+                textposition="top center",
                 textfont=dict(color=COLOR_FINALIZADOS, size=11),
+                marker=dict(size=8, color=COLOR_FINALIZADOS),
+                line=dict(color=COLOR_FINALIZADOS, width=3, shape="spline"),
                 cliponaxis=False,
             ))
             fig_anual.update_layout(
                 title=f"<b>Recibidos vs. Atendidos por Mes ({ambito}{subtitulo_y}) — {anio_anual}</b>",
-                barmode="group",
-                bargap=0.22,
-                bargroupgap=0.08,
+                bargap=0.28,
                 xaxis_title="<b>Mes</b>",
                 yaxis_title="<b>Cantidad de Incidencias</b>",
                 hovermode="x unified",
