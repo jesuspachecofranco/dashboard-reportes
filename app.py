@@ -98,6 +98,65 @@ def _limpiar_matriz(df, col_entidad):
     return df
 
 
+def _construir_bloque_lara(datos_iri, datos_for):
+    """Combina Iribarren + Municipios Foráneos en un solo conjunto estatal (Lara)."""
+    # 1. Consolidado Lara
+    cons_iri = datos_iri["consolidado"].copy()
+    cons_for = datos_for["consolidado"].copy()
+    if not cons_iri.empty:
+        cons_iri["MUNICIPIO"] = "IRIBARREN"
+    dfs_cons = [d for d in [cons_iri, cons_for] if not d.empty]
+    cons_lara = pd.concat(dfs_cons, ignore_index=True) if dfs_cons else pd.DataFrame()
+
+    # 2. Resumen Lara (con columna MUNICIPIO donde Iribarren figura como 'IRIBARREN')
+    res_iri = datos_iri["resumen"].copy()
+    res_for = datos_for["resumen"].copy()
+    if not res_iri.empty:
+        res_iri["MUNICIPIO"] = "IRIBARREN"
+    dfs_res = [d for d in [res_iri, res_for] if not d.empty]
+    res_lara = (
+        pd.concat(dfs_res, ignore_index=True).sort_values("FECHA_DT").reset_index(drop=True)
+        if dfs_res
+        else pd.DataFrame()
+    )
+
+    # 3. Matriz Lara (fila TOTALES de Matriz Zonas como 'IRIBARREN' + municipios foráneos)
+    mat_iri = datos_iri["matriz"].copy()
+    mat_for = datos_for["matriz"].copy()
+    fila_iri = pd.DataFrame()
+    if not mat_iri.empty and "ZONA" in mat_iri.columns:
+        tot_iri = mat_iri[mat_iri["ZONA"] == "TOTALES"].copy()
+        if not tot_iri.empty:
+            tot_iri = tot_iri.rename(columns={"ZONA": "MUNICIPIO"})
+            tot_iri["MUNICIPIO"] = "IRIBARREN"
+            fila_iri = tot_iri
+
+    mat_for_sin_tot = (
+        mat_for[mat_for["MUNICIPIO"] != "TOTALES"].copy()
+        if (not mat_for.empty and "MUNICIPIO" in mat_for.columns)
+        else pd.DataFrame()
+    )
+
+    partes_mat = [d for d in [fila_iri, mat_for_sin_tot] if not d.empty]
+    if partes_mat:
+        mat_lara = pd.concat(partes_mat, ignore_index=True)
+        cols_fecha = [c for c in mat_lara.columns if c != "MUNICIPIO"]
+        for c in cols_fecha:
+            mat_lara[c] = pd.to_numeric(mat_lara[c], errors="coerce").fillna(0).astype(int)
+        fila_tot_lara = {"MUNICIPIO": "TOTALES"}
+        for c in cols_fecha:
+            fila_tot_lara[c] = int(mat_lara[c].sum())
+        mat_lara = pd.concat([mat_lara, pd.DataFrame([fila_tot_lara])], ignore_index=True)
+    else:
+        mat_lara = pd.DataFrame()
+
+    return {
+        "consolidado": cons_lara,
+        "resumen": res_lara,
+        "matriz": mat_lara,
+    }
+
+
 @st.cache_data
 def cargar_excel_completo():
     if not os.path.exists(ARCHIVO_EXCEL):
@@ -155,6 +214,9 @@ def cargar_excel_completo():
             )
             break
 
+    # --- BLOQUE LARA (IRIBARREN + FORÁNEOS UNIFICADOS) ---
+    datos["lara"] = _construir_bloque_lara(datos["iribarren"], datos["foraneos"])
+
     return datos
 
 
@@ -166,17 +228,17 @@ if datos is None:
 
 
 # ==========================================
-# 2. SELECTOR PRINCIPAL DE ÁMBITO (SEPARADO)
+# 2. SELECTOR PRINCIPAL DE ÁMBITO
 # ==========================================
 with st.sidebar:
     st.header("🧭 Ámbito de Análisis")
     ambito = st.radio(
         "Seleccione el conjunto de datos:",
-        options=["Iribarren", "Foráneos"],
+        options=["Iribarren", "Foráneos", "Lara (Todos)"],
         index=0,
         key="selector_ambito",
     )
-    st.caption("Los datos se analizan por separado.")
+    st.caption("Los datos se analizan por separado o consolidados en Lara.")
 
 if ambito == "Iribarren":
     df_consolidado = datos["iribarren"]["consolidado"]
@@ -186,7 +248,7 @@ if ambito == "Iribarren":
     etiqueta_entidad = "Zona"
     etiqueta_listado = "Zonas"
     sufijo_key = "iribarren"
-else:
+elif ambito == "Foráneos":
     df_consolidado = datos["foraneos"]["consolidado"]
     df_resumen = datos["foraneos"]["resumen"]
     df_matriz = datos["foraneos"]["matriz"]
@@ -194,6 +256,14 @@ else:
     etiqueta_entidad = "Municipio"
     etiqueta_listado = "Municipios"
     sufijo_key = "foraneos"
+else:
+    df_consolidado = datos["lara"]["consolidado"]
+    df_resumen = datos["lara"]["resumen"]
+    df_matriz = datos["lara"]["matriz"]
+    col_entidad = "MUNICIPIO"
+    etiqueta_entidad = "Municipio"
+    etiqueta_listado = "Municipios"
+    sufijo_key = "lara"
 
 
 # ==========================================
@@ -364,10 +434,10 @@ with tab1:
             )
             st.plotly_chart(fig1, use_container_width=True, key=f"fig_diario_{sufijo_key}")
 
-            # --- RANKING COMPARATIVO POR MUNICIPIO (EN ÁMBITO FORÁNEOS Y "TODOS") ---
-            if ambito == "Foráneos" and tiene_col_entidad and entidad_sel == "TODOS":
+            # --- RANKING COMPARATIVO POR MUNICIPIO (FORÁNEOS O LARA TODOS) ---
+            if ambito in ["Foráneos", "Lara (Todos)"] and tiene_col_entidad and entidad_sel == "TODOS":
                 st.divider()
-                st.markdown(f"### 🏆 Ranking Comparativo por Municipio — {mes_nombre_sel} {anio_sel}")
+                st.markdown(f"### 🏆 Ranking Comparativo por Municipio ({ambito}) — {mes_nombre_sel} {anio_sel}")
                 df_mun_periodo = df_resumen[
                     (df_resumen["ANIO"] == anio_sel) & (df_resumen["MES"] == mes_sel)
                 ].copy()
@@ -410,7 +480,7 @@ with tab1:
                             height=max(320, len(rk_pend) * 34),
                             margin=dict(r=40),
                         )
-                        st.plotly_chart(fig_rk_pend, use_container_width=True, key="fig_rk_mun_pend")
+                        st.plotly_chart(fig_rk_pend, use_container_width=True, key=f"fig_rk_mun_pend_{sufijo_key}")
 
                     with col_rk2:
                         rk_rec = ranking_mun.sort_values("RECIBIDOS_TOTAL", ascending=True)
@@ -433,7 +503,7 @@ with tab1:
                             height=max(320, len(rk_rec) * 34),
                             margin=dict(r=40),
                         )
-                        st.plotly_chart(fig_rk_rec, use_container_width=True, key="fig_rk_mun_rec")
+                        st.plotly_chart(fig_rk_rec, use_container_width=True, key=f"fig_rk_mun_rec_{sufijo_key}")
 
             cols_tabla_res = [
                 col_entidad if (tiene_col_entidad and entidad_sel != "TODOS") else None,
@@ -461,10 +531,10 @@ with tab1:
 
 
 # ------------------------------------------
-# TAB 2: SEGUIMIENTO ANUAL
+# TAB 2: SEGUIMIENTO ANUAL (RECIBIDO VS ATENDIDO)
 # ------------------------------------------
 with tab2:
-    st.subheader(f"📈 Seguimiento Mensual Acumulado ({ambito})")
+    st.subheader(f"📈 Seguimiento Anual: Recibidos vs. Atendidos ({ambito})")
     if df_resumen.empty:
         st.info(f"No hay registros cargados en el resumen diario de {ambito}.")
     else:
@@ -480,11 +550,8 @@ with tab2:
                 df_y_base = (
                     df_resumen.groupby(["FECHA_DT", "ANIO", "MES"], as_index=False)
                     .agg({
-                        "PENDIENTES INICIO (6 AM)": "sum",
                         "RECIBIDOS": "sum",
                         "FINALIZADOS": "sum",
-                        "EN EJECUCIÓN CIERRE (6 AM)": "sum",
-                        "PENDIENTES CIERRE (6 AM)": "sum",
                     })
                     .sort_values("FECHA_DT")
                 )
@@ -502,75 +569,78 @@ with tab2:
         filas_anuales = []
 
         for m, grp in df_y.groupby("MES", sort=True):
-            pend_ini_m = int(grp["PENDIENTES INICIO (6 AM)"].iloc[0])
             rec_m = int(grp["RECIBIDOS"].sum())
-            fin_m = int(grp["FINALIZADOS"].sum())
-            ee_cierre_m = int(grp["EN EJECUCIÓN CIERRE (6 AM)"].iloc[-1])
-            pend_cierre_m = int(grp["PENDIENTES CIERRE (6 AM)"].iloc[-1])
-            tot_m = pend_ini_m + rec_m
+            atend_m = int(grp["FINALIZADOS"].sum())
+            dif_m = atend_m - rec_m
 
             filas_anuales.append({
                 "MES_NUM": int(m),
                 "MES": meses_upper[int(m)],
-                "PENDIENTES INICIO (6 AM)": pend_ini_m,
                 "RECIBIDOS": rec_m,
-                "TOTAL (INI+REC)": tot_m,
-                "FINALIZADOS": fin_m,
-                "EN EJECUCIÓN CIERRE (6 AM)": ee_cierre_m,
-                "PENDIENTES CIERRE (6 AM)": pend_cierre_m,
+                "ATENDIDOS": atend_m,
+                "DIFERENCIA (ATEND - REC)": dif_m,
             })
 
         df_anual = pd.DataFrame(filas_anuales).sort_values("MES_NUM")
 
         if not df_anual.empty:
-            st.dataframe(df_anual.drop(columns=["MES_NUM"]), use_container_width=True, hide_index=True)
+            tot_rec_anual = int(df_anual["RECIBIDOS"].sum())
+            tot_atend_anual = int(df_anual["ATENDIDOS"].sum())
+            prom_rec_anual = float(df_anual["RECIBIDOS"].mean())
+            prom_atend_anual = float(df_anual["ATENDIDOS"].mean())
+
+            ym1, ym2, ym3, ym4 = st.columns(4)
+            ym1.metric(f"📥 Total Recibidos ({anio_anual})", f"{tot_rec_anual:,}")
+            ym2.metric(f"✅ Total Atendidos ({anio_anual})", f"{tot_atend_anual:,}")
+            ym3.metric("📈 Prom. Mensual Recibidos", f"{prom_rec_anual:,.1f}")
+            ym4.metric("📉 Prom. Mensual Atendidos", f"{prom_atend_anual:,.1f}")
+            st.divider()
 
             subtitulo_y = f" — {entidad_y_sel}" if tiene_col_entidad and entidad_y_sel != "TODOS" else ""
             fig_anual = go.Figure()
             fig_anual.add_trace(go.Bar(
-                x=df_anual["MES"], y=df_anual["PENDIENTES INICIO (6 AM)"],
-                name="Pendientes Inicio (6 AM)", marker_color=COLOR_PA_INICIO,
-                text=df_anual["PENDIENTES INICIO (6 AM)"], textposition="inside",
+                x=df_anual["MES"],
+                y=df_anual["RECIBIDOS"],
+                name="Recibidos",
+                marker_color=COLOR_RECIBIDOS,
+                text=df_anual["RECIBIDOS"],
+                textposition="outside",
                 textfont=dict(color="black", size=11),
+                cliponaxis=False,
             ))
             fig_anual.add_trace(go.Bar(
-                x=df_anual["MES"], y=df_anual["RECIBIDOS"],
-                name="Recibidos", marker_color=COLOR_RECIBIDOS,
-                text=df_anual["RECIBIDOS"], textposition="inside",
-                textfont=dict(color="black", size=11),
-            ))
-            fig_anual.add_trace(go.Bar(
-                x=df_anual["MES"], y=df_anual["EN EJECUCIÓN CIERRE (6 AM)"],
-                name="En Ejecución Cierre (6 AM)", marker_color=COLOR_EE_CIERRE,
-                text=df_anual["EN EJECUCIÓN CIERRE (6 AM)"], textposition="inside",
-                textfont=dict(color="black", size=11),
-            ))
-            tope_anual = (
-                df_anual["PENDIENTES INICIO (6 AM)"]
-                + df_anual["RECIBIDOS"]
-                + df_anual["EN EJECUCIÓN CIERRE (6 AM)"]
-            )
-            fig_anual.add_trace(go.Scatter(
-                x=df_anual["MES"], y=tope_anual,
-                name="Total (Ini+Rec)", mode="text",
-                text=df_anual["TOTAL (INI+REC)"], textposition="top center",
-                textfont=dict(color="#1F4E78", size=12), showlegend=False, cliponaxis=False,
-            ))
-            fig_anual.add_trace(go.Scatter(
-                x=df_anual["MES"], y=df_anual["FINALIZADOS"],
-                name="Finalizados", mode="lines+markers+text",
-                text=df_anual["FINALIZADOS"], textposition="bottom center",
-                marker=dict(size=6, color=COLOR_FINALIZADOS), line=dict(color=COLOR_FINALIZADOS, width=2),
+                x=df_anual["MES"],
+                y=df_anual["ATENDIDOS"],
+                name="Atendidos",
+                marker_color=COLOR_FINALIZADOS,
+                text=df_anual["ATENDIDOS"],
+                textposition="outside",
+                textfont=dict(color=COLOR_FINALIZADOS, size=11),
+                cliponaxis=False,
             ))
             fig_anual.update_layout(
-                title=f"<b>Evolución Mensual Acumulada ({ambito}{subtitulo_y}) — {anio_anual}</b>",
-                barmode="stack",
+                title=f"<b>Recibidos vs. Atendidos por Mes ({ambito}{subtitulo_y}) — {anio_anual}</b>",
+                barmode="group",
+                bargap=0.22,
+                bargroupgap=0.08,
                 xaxis_title="<b>Mes</b>",
-                yaxis_title="<b>Cantidad</b>",
+                yaxis_title="<b>Cantidad de Incidencias</b>",
                 hovermode="x unified",
                 legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
             )
             st.plotly_chart(fig_anual, use_container_width=True, key=f"fig_anual_{sufijo_key}")
+
+            st.dataframe(df_anual.drop(columns=["MES_NUM"]), use_container_width=True, hide_index=True)
+
+            buf_y = io.BytesIO()
+            with pd.ExcelWriter(buf_y, engine="openpyxl") as writer:
+                df_anual.drop(columns=["MES_NUM"]).to_excel(writer, index=False, sheet_name="Seguimiento_Anual")
+            st.download_button(
+                f"⬇️ Descargar Seguimiento Anual {ambito} (.xlsx)",
+                buf_y.getvalue(),
+                file_name=f"seguimiento_anual_{sufijo_key}_{anio_anual}.xlsx",
+                key=f"dl_anual_{sufijo_key}",
+            )
 
 
 # ------------------------------------------
